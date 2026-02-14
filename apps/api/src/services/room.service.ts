@@ -29,9 +29,12 @@ export class RoomService {
     let user = await this.userRepository.findOne({ where: { name: createRoomDto.hostName } });
     
     if (!user) {
+      const username = `user_${uuidv4().substring(0, 8)}`;
       user = this.userRepository.create({
         id: uuidv4(),
         name: createRoomDto.hostName,
+        username: username,
+        password: '', // Temporary password for auto-created users
       });
       await this.userRepository.save(user);
     }
@@ -110,9 +113,12 @@ export class RoomService {
       : null;
 
     if (!user) {
+      const username = `user_${uuidv4().substring(0, 8)}`;
       user = this.userRepository.create({
         id: uuidv4(),
         name: joinRoomDto.userName,
+        username: username,
+        password: '', // Temporary password for auto-created users
       });
       await this.userRepository.save(user);
     }
