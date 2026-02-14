@@ -32,13 +32,33 @@ services:
   livekit:
     image: livekit/livekit-server:latest
     container_name: arabicmeet-livekit-prod
-    command: --config /etc/livekit.yaml
-    volumes:
-      - ./infra/livekit.yaml:/etc/livekit.yaml
+    environment:
+      LIVEKIT_CONFIG: |
+        port: 7880
+        rtc:
+          port_range_start: 50000
+          port_range_end: 60000
+          use_external_ip: true
+          tcp_port: 7881
+          udp_port: 7882
+        redis:
+          address: redis:6379
+        keys:
+          ${LIVEKIT_API_KEY}: ${LIVEKIT_API_SECRET}
+        room:
+          auto_create: true
+          empty_timeout: 300
+          max_participants: 50
+        turn:
+          enabled: false
+        logging:
+          level: info
+          json: false
     ports:
       - "7880:7880"
       - "7881:7881"
       - "7882:7882/udp"
+      - "50000-60000:50000-60000/udp"
     depends_on:
       - redis
     restart: unless-stopped
