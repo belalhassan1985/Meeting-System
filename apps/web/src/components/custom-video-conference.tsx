@@ -27,6 +27,7 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
   const [raisedHands, setRaisedHands] = useState<Set<string>>(new Set())
   const [pinnedParticipantId, setPinnedParticipantId] = useState<string | null>(null)
   const [showParticipants, setShowParticipants] = useState(false)
+  const [participantStates, setParticipantStates] = useState<Record<string, { micEnabled: boolean; cameraEnabled: boolean }>>({})
   const router = useRouter()
 
   const tracks = useTracks(
@@ -50,6 +51,67 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
       participantsCount: participants.length
     })
   }, [userRole, isAdmin, tracks.length, participants.length])
+
+  // Track participant device states
+  useEffect(() => {
+    if (!room) return
+
+    const updateParticipantState = (participant: RemoteParticipant | LocalParticipant) => {
+      const micTrack = participant.getTrackPublication(Track.Source.Microphone)
+      const cameraTrack = participant.getTrackPublication(Track.Source.Camera)
+      
+      setParticipantStates(prev => ({
+        ...prev,
+        [participant.identity]: {
+          micEnabled: micTrack ? !micTrack.isMuted : false,
+          cameraEnabled: cameraTrack ? !cameraTrack.isMuted : false,
+        }
+      }))
+    }
+
+    // Update all participants initially
+    updateParticipantState(localParticipant)
+    participants.forEach(updateParticipantState)
+
+    // Listen for track muted/unmuted events
+    const handleTrackMuted = () => {
+      // Update all participants when any track is muted
+      updateParticipantState(localParticipant)
+      participants.forEach(updateParticipantState)
+    }
+
+    const handleTrackUnmuted = () => {
+      // Update all participants when any track is unmuted
+      updateParticipantState(localParticipant)
+      participants.forEach(updateParticipantState)
+    }
+
+    // Add listeners for all participants
+    participants.forEach(participant => {
+      participant.on('trackMuted', handleTrackMuted)
+      participant.on('trackUnmuted', handleTrackUnmuted)
+    })
+
+    // Add listeners for local participant
+    localParticipant.on('trackMuted', handleTrackMuted)
+    localParticipant.on('trackUnmuted', handleTrackUnmuted)
+
+    // Listen for new participants
+    room.on('participantConnected', (participant: RemoteParticipant) => {
+      updateParticipantState(participant)
+      participant.on('trackMuted', handleTrackMuted)
+      participant.on('trackUnmuted', handleTrackUnmuted)
+    })
+
+    return () => {
+      participants.forEach(participant => {
+        participant.off('trackMuted', handleTrackMuted)
+        participant.off('trackUnmuted', handleTrackUnmuted)
+      })
+      localParticipant.off('trackMuted', handleTrackMuted)
+      localParticipant.off('trackUnmuted', handleTrackUnmuted)
+    }
+  }, [room, participants, localParticipant])
 
   // Handle hand raise
   const toggleHandRaise = async () => {
@@ -107,6 +169,19 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
       targetId: participant.identity,
     }))
     await localParticipant.publishData(data, { reliable: true })
+    
+    // Update state immediately for instant feedback
+    setTimeout(() => {
+      const micTrack = participant.getTrackPublication(Track.Source.Microphone)
+      const cameraTrack = participant.getTrackPublication(Track.Source.Camera)
+      setParticipantStates(prev => ({
+        ...prev,
+        [participant.identity]: {
+          micEnabled: false,
+          cameraEnabled: cameraTrack ? !cameraTrack.isMuted : false,
+        }
+      }))
+    }, 100)
   }
 
   // Admin controls: disable camera
@@ -119,6 +194,19 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
       targetId: participant.identity,
     }))
     await localParticipant.publishData(data, { reliable: true })
+    
+    // Update state immediately for instant feedback
+    setTimeout(() => {
+      const micTrack = participant.getTrackPublication(Track.Source.Microphone)
+      const cameraTrack = participant.getTrackPublication(Track.Source.Camera)
+      setParticipantStates(prev => ({
+        ...prev,
+        [participant.identity]: {
+          micEnabled: micTrack ? !micTrack.isMuted : false,
+          cameraEnabled: false,
+        }
+      }))
+    }, 100)
   }
 
   // Admin controls: kick participant
@@ -158,9 +246,9 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
       if (data.targetId !== localParticipant.identity) return
 
       if (data.type === 'admin-mute') {
-        localParticipant.setMicrophoneEnabled(false)
+        await localParticipant.setMicrophoneEnabled(false)
       } else if (data.type === 'admin-disable-camera') {
-        localParticipant.setCameraEnabled(false)
+        await localParticipant.setCameraEnabled(false)
       } else if (data.type === 'admin-kick') {
         // Participant is being kicked - disconnect and redirect
         await room?.disconnect()
@@ -190,6 +278,7 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
     const isLocal = participant instanceof LocalParticipant
     const hasRaisedHand = raisedHands.has(participant.identity)
     const isPinned = participant.identity === pinnedParticipantId
+    const deviceState = participantStates[participant.identity] || { micEnabled: false, cameraEnabled: false }
 
     return (
       <div 
@@ -202,12 +291,77 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
           <ParticipantTile />
         </TrackRefContext.Provider>
         
-        {/* Hand raised indicator */}
-        {hasRaisedHand && (
-          <div className="absolute top-2 right-2 bg-yellow-500 text-white p-2 rounded-full z-20">
-            <Hand className="w-5 h-5" />
-          </div>
-        )}
+        {/* Device status indicators - top right */}
+        <div className="absolute top-2 right-2 flex gap-1 z-20">
+          {/* Hand raised indicator */}
+          {hasRaisedHand && (
+            <div className="bg-yellow-500 text-white p-2 rounded-full">
+              <Hand className="w-5 h-5" />
+            </div>
+          )}
+          
+          {/* Mic status - clickable for admin on remote participants */}
+          {isAdmin && !isLocal ? (
+            <button
+              onClick={() => {
+                if (participant instanceof RemoteParticipant) {
+                  muteParticipant(participant)
+                }
+              }}
+              className={`p-2 rounded-full transition shadow-lg ${
+                deviceState.micEnabled ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'
+              }`}
+              title={deviceState.micEnabled ? 'كتم المايك' : 'المايك مكتوم'}
+            >
+              {deviceState.micEnabled ? (
+                <Mic className="w-4 h-4 text-white" />
+              ) : (
+                <MicOff className="w-4 h-4 text-white" />
+              )}
+            </button>
+          ) : (
+            <div className={`p-2 rounded-full ${
+              deviceState.micEnabled ? 'bg-green-600' : 'bg-red-600'
+            }`}>
+              {deviceState.micEnabled ? (
+                <Mic className="w-4 h-4 text-white" />
+              ) : (
+                <MicOff className="w-4 h-4 text-white" />
+              )}
+            </div>
+          )}
+          
+          {/* Camera status - clickable for admin on remote participants */}
+          {isAdmin && !isLocal ? (
+            <button
+              onClick={() => {
+                if (participant instanceof RemoteParticipant) {
+                  disableCamera(participant)
+                }
+              }}
+              className={`p-2 rounded-full transition shadow-lg ${
+                deviceState.cameraEnabled ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'
+              }`}
+              title={deviceState.cameraEnabled ? 'إغلاق الكاميرا' : 'الكاميرا مغلقة'}
+            >
+              {deviceState.cameraEnabled ? (
+                <Video className="w-4 h-4 text-white" />
+              ) : (
+                <VideoOff className="w-4 h-4 text-white" />
+              )}
+            </button>
+          ) : (
+            <div className={`p-2 rounded-full ${
+              deviceState.cameraEnabled ? 'bg-green-600' : 'bg-red-600'
+            }`}>
+              {deviceState.cameraEnabled ? (
+                <Video className="w-4 h-4 text-white" />
+              ) : (
+                <VideoOff className="w-4 h-4 text-white" />
+              )}
+            </div>
+          )}
+        </div>
 
         {/* Pin button */}
         <button
@@ -217,34 +371,6 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
         >
           {isPinned ? <PinOff className="w-4 h-4" /> : <Pin className="w-4 h-4" />}
         </button>
-
-        {/* Admin controls */}
-        {isAdmin && !isLocal && (
-          <div className="absolute bottom-2 right-2 flex gap-2 z-10">
-            <button
-              onClick={() => {
-                if (participant instanceof RemoteParticipant) {
-                  muteParticipant(participant)
-                }
-              }}
-              className="bg-red-600 hover:bg-red-700 text-white p-2 rounded-full transition shadow-lg"
-              title="كتم المايك"
-            >
-              <MicOff className="w-4 h-4" />
-            </button>
-            <button
-              onClick={() => {
-                if (participant instanceof RemoteParticipant) {
-                  disableCamera(participant)
-                }
-              }}
-              className="bg-red-600 hover:bg-red-700 text-white p-2 rounded-full transition shadow-lg"
-              title="إغلاق الكاميرا"
-            >
-              <VideoOff className="w-4 h-4" />
-            </button>
-          </div>
-        )}
 
         {/* Participant name */}
         <div className="absolute bottom-2 left-2 bg-black bg-opacity-50 text-white px-3 py-1 rounded text-sm z-10">
@@ -286,33 +412,65 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
                       </span>
                       <span className="text-xs text-blue-400">(أنت)</span>
                     </div>
+                    <div className="flex items-center gap-1">
+                      {participantStates[localParticipant.identity]?.micEnabled ? (
+                        <Mic className="w-4 h-4 text-green-500" />
+                      ) : (
+                        <MicOff className="w-4 h-4 text-red-500" />
+                      )}
+                      {participantStates[localParticipant.identity]?.cameraEnabled ? (
+                        <Video className="w-4 h-4 text-green-500" />
+                      ) : (
+                        <VideoOff className="w-4 h-4 text-red-500" />
+                      )}
+                    </div>
                   </div>
                 </div>
                 
                 {/* Remote participants */}
-                {participants.map((participant) => (
-                  <div key={participant.identity} className="bg-gray-800 p-3 rounded-lg">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                        <span className="text-white text-sm">
-                          {participant.name || participant.identity}
-                        </span>
+                {participants.map((participant) => {
+                  const deviceState = participantStates[participant.identity] || { micEnabled: false, cameraEnabled: false }
+                  
+                  return (
+                    <div key={participant.identity} className="bg-gray-800 p-3 rounded-lg">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                          <span className="text-white text-sm">
+                            {participant.name || participant.identity}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {/* Device status indicators */}
+                          <div className="flex items-center gap-1">
+                            {deviceState.micEnabled ? (
+                              <Mic className="w-4 h-4 text-green-500" />
+                            ) : (
+                              <MicOff className="w-4 h-4 text-red-500" />
+                            )}
+                            {deviceState.cameraEnabled ? (
+                              <Video className="w-4 h-4 text-green-500" />
+                            ) : (
+                              <VideoOff className="w-4 h-4 text-red-500" />
+                            )}
+                          </div>
+                          {/* Kick button */}
+                          <button
+                            onClick={() => {
+                              if (confirm(`هل تريد طرد ${participant.name || participant.identity} من الغرفة؟`)) {
+                                kickParticipant(participant.identity)
+                              }
+                            }}
+                            className="bg-red-600 hover:bg-red-700 text-white p-1.5 rounded transition"
+                            title="طرد من الغرفة"
+                          >
+                            <UserX className="w-4 h-4" />
+                          </button>
+                        </div>
                       </div>
-                      <button
-                        onClick={() => {
-                          if (confirm(`هل تريد طرد ${participant.name || participant.identity} من الغرفة؟`)) {
-                            kickParticipant(participant.identity)
-                          }
-                        }}
-                        className="bg-red-600 hover:bg-red-700 text-white p-1.5 rounded transition"
-                        title="طرد من الغرفة"
-                      >
-                        <UserX className="w-4 h-4" />
-                      </button>
                     </div>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             </div>
           </div>
