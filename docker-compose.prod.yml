@@ -58,7 +58,7 @@ services:
       DATABASE_NAME: ${DATABASE_NAME:-postgres}
       LIVEKIT_API_KEY: ${LIVEKIT_API_KEY}
       LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET}
-      LIVEKIT_URL: ws://livekit:7880
+      LIVEKIT_URL: http://livekit:7880
       JWT_SECRET: ${JWT_SECRET}
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3000}
     ports:
