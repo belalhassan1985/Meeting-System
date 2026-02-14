@@ -4,7 +4,8 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Trash2, ArrowLeft, Lock, Users, Unlock, Video } from 'lucide-react'
+import { Input } from '@/components/ui/input'
+import { Trash2, ArrowLeft, Lock, Users, Unlock, Video, Plus, X } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 
@@ -12,6 +13,8 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
 
 export default function RoomsManagement() {
   const [page, setPage] = useState(1)
+  const [showCreateDialog, setShowCreateDialog] = useState(false)
+  const [newRoom, setNewRoom] = useState({ name: '', description: '', maxParticipants: 10 })
   const queryClient = useQueryClient()
   const router = useRouter()
 
@@ -92,6 +95,32 @@ export default function RoomsManagement() {
     },
   })
 
+  const createRoomMutation = useMutation({
+    mutationFn: async (roomData: { name: string; description: string; maxParticipants: number }) => {
+      const res = await fetch(`${API_URL}/rooms`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(roomData),
+      })
+      if (!res.ok) throw new Error('Failed to create room')
+      return res.json()
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-rooms'] })
+      setShowCreateDialog(false)
+      setNewRoom({ name: '', description: '', maxParticipants: 10 })
+    },
+  })
+
+  const handleCreateRoom = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!newRoom.name.trim()) {
+      alert('يرجى إدخال اسم الغرفة')
+      return
+    }
+    await createRoomMutation.mutateAsync(newRoom)
+  }
+
   const handleDelete = async (roomId: string, roomName: string) => {
     if (confirm(`هل أنت متأكد من حذف الغرفة "${roomName}"؟\nسيتم حذف جميع البيانات المرتبطة بها.`)) {
       await deleteMutation.mutateAsync(roomId)
@@ -120,10 +149,86 @@ export default function RoomsManagement() {
 
   return (
     <div>
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">إدارة الغرف</h1>
-        <p className="text-gray-600">عرض وإدارة جميع الغرف في النظام</p>
+      <div className="mb-6 flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">إدارة الغرف</h1>
+          <p className="text-gray-600">عرض وإدارة جميع الغرف في النظام</p>
+        </div>
+        <Button
+          onClick={() => setShowCreateDialog(true)}
+          className="bg-blue-600 hover:bg-blue-700"
+          size="lg"
+        >
+          <Plus className="h-5 w-5 ml-2" />
+          إنشاء غرفة جديدة
+        </Button>
       </div>
+
+      {/* Create Room Dialog */}
+      {showCreateDialog && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowCreateDialog(false)}>
+          <Card className="w-full max-w-md mx-4" onClick={(e) => e.stopPropagation()}>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle>إنشاء غرفة جديدة</CardTitle>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowCreateDialog(false)}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={handleCreateRoom} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium mb-2">اسم الغرفة *</label>
+                  <Input
+                    value={newRoom.name}
+                    onChange={(e) => setNewRoom({ ...newRoom, name: e.target.value })}
+                    placeholder="مثال: غرفة الاجتماعات"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-2">الوصف</label>
+                  <Input
+                    value={newRoom.description}
+                    onChange={(e) => setNewRoom({ ...newRoom, description: e.target.value })}
+                    placeholder="وصف مختصر للغرفة"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-2">الحد الأقصى للمشاركين</label>
+                  <Input
+                    type="number"
+                    min="2"
+                    max="100"
+                    value={newRoom.maxParticipants}
+                    onChange={(e) => setNewRoom({ ...newRoom, maxParticipants: parseInt(e.target.value) || 10 })}
+                  />
+                </div>
+                <div className="flex gap-2 pt-4">
+                  <Button
+                    type="submit"
+                    disabled={createRoomMutation.isPending}
+                    className="flex-1"
+                  >
+                    {createRoomMutation.isPending ? 'جاري الإنشاء...' : 'إنشاء'}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setShowCreateDialog(false)}
+                    className="flex-1"
+                  >
+                    إلغاء
+                  </Button>
+                </div>
+              </form>
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
         <Card>
           <CardHeader>
