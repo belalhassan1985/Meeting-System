@@ -10,7 +10,7 @@ redis:
   address: redis:6379
 
 keys:
-  devkey: secretsecretsecretsecretsecretsecret
+  RYKAXVztBmSn8qjusGLI6WT9gr2fc30v: hofkLYXCzx24DdO1n6FZbJeAB5NTWuc9
 
 room:
   auto_create: true
