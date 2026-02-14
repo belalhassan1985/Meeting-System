@@ -42,6 +42,10 @@ services:
     depends_on:
       - redis
     restart: unless-stopped
+    labels:
+      - "coolify.managed=true"
+      - "coolify.http.enabled=true"
+      - "coolify.http.port=7880"
 
   api:
     build:
