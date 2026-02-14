@@ -1,17 +1,82 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Fix User Roles</title>
+    <title>Fix Users Database</title>
     <meta charset="UTF-8">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            direction: rtl;
+        }
+        button {
+            padding: 10px 20px;
+            margin: 10px;
+            font-size: 16px;
+            cursor: pointer;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+        }
+        button:hover {
+            background: #45a049;
+        }
+        pre {
+            background: #f4f4f4;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+        }
+        .success {
+            color: green;
+        }
+        .error {
+            color: red;
+        }
+    </style>
 </head>
 <body>
-    <h1>تحديث أدوار المستخدمين</h1>
-    <button onclick="fixRoles()">تحديث الأدوار</button>
-    <pre id="result"></pre>
+    <h1>إصلاح قاعدة بيانات المستخدمين</h1>
+    
+    <div>
+        <h2>الخطوة 1: إصلاح usernames الفارغة</h2>
+        <button onclick="fixUsernames()">إصلاح Usernames</button>
+        <pre id="usernameResult"></pre>
+    </div>
+
+    <div>
+        <h2>الخطوة 2: تحديث الأدوار</h2>
+        <button onclick="fixRoles()">تحديث الأدوار</button>
+        <pre id="roleResult"></pre>
+    </div>
 
     <script>
+        async function fixUsernames() {
+            const resultEl = document.getElementById('usernameResult');
+            resultEl.textContent = 'جاري الإصلاح...';
+            
+            try {
+                const response = await fetch('http://localhost:3001/users/fix-usernames', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                const data = await response.json();
+                resultEl.textContent = JSON.stringify(data, null, 2);
+                resultEl.className = 'success';
+            } catch (error) {
+                resultEl.textContent = 'خطأ: ' + error.message;
+                resultEl.className = 'error';
+            }
+        }
+
         async function fixRoles() {
-            const resultEl = document.getElementById('result');
+            const resultEl = document.getElementById('roleResult');
             resultEl.textContent = 'جاري التحديث...';
             
             try {
@@ -24,8 +89,10 @@
                 
                 const data = await response.json();
                 resultEl.textContent = JSON.stringify(data, null, 2);
+                resultEl.className = 'success';
             } catch (error) {
                 resultEl.textContent = 'خطأ: ' + error.message;
+                resultEl.className = 'error';
             }
         }
     </script>

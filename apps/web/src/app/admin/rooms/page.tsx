@@ -103,10 +103,16 @@ export default function RoomsManagement() {
 
   const createRoomMutation = useMutation({
     mutationFn: async (roomData: typeof newRoom) => {
+      const adminInfo = localStorage.getItem('userInfo')
+      const admin = adminInfo ? JSON.parse(adminInfo) : null
+      
       const res = await fetch(`${API_URL}/rooms`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(roomData),
+        body: JSON.stringify({
+          ...roomData,
+          userId: admin?.id, // Add admin's userId so they become the host
+        }),
       })
       if (!res.ok) {
         const error = await res.json()

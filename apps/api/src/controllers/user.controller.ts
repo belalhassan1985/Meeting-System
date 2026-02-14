@@ -49,4 +49,10 @@ export class UserController {
   async fixRoles() {
     return this.userService.fixRoles();
   }
+
+  @Post('fix-usernames')
+  @HttpCode(HttpStatus.OK)
+  async fixUsernames() {
+    return this.userService.fixNullUsernames();
+  }
 }

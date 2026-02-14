@@ -2,13 +2,13 @@
 
 import { useEffect, Suspense } from 'react'
 import { useParams, useSearchParams, useRouter } from 'next/navigation'
-import { LiveKitRoom, VideoConference, RoomAudioRenderer } from '@livekit/components-react'
+import { LiveKitRoom, RoomAudioRenderer } from '@livekit/components-react'
 import { useRoomStore } from '@/store/room-store'
 import { connectSocket, disconnectSocket } from '@/lib/socket'
 import { Loader2 } from 'lucide-react'
 import { UserRole } from '@arabic-meet/shared'
 import { ErrorBoundary } from '@/components/error-boundary'
-import { LeaveButton } from '@/components/leave-button'
+import { CustomVideoConference } from '@/components/custom-video-conference'
 import './room.css'
 
 function RoomContent() {
@@ -19,7 +19,18 @@ function RoomContent() {
   const token = searchParams.get('token')
   const userId = searchParams.get('userId')
   const userName = searchParams.get('userName')
-  const userRole = (searchParams.get('userRole') as UserRole) || UserRole.PARTICIPANT
+  const userRoleParam = searchParams.get('userRole')
+  const userRole = (userRoleParam as UserRole) || UserRole.PARTICIPANT
+
+  // Debug URL params
+  console.log('🔗 Room URL Params:', {
+    roomId,
+    userId,
+    userName,
+    userRoleParam,
+    userRole,
+    token: token ? 'exists' : 'missing'
+  })
 
   const { setRoomInfo, reset } = useRoomStore()
 
@@ -73,9 +84,8 @@ function RoomContent() {
         style={{ height: '100vh' }}
         onDisconnected={handleDisconnected}
       >
-        <LeaveButton />
         <ErrorBoundary>
-          <VideoConference />
+          <CustomVideoConference userRole={userRole} />
         </ErrorBoundary>
         <RoomAudioRenderer />
       </LiveKitRoom>

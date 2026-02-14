@@ -235,4 +235,37 @@ export class UserService {
       })),
     };
   }
+
+  async fixNullUsernames() {
+    const allUsers = await this.userRepository.find();
+    const updates: Array<{ id: string; name: string; username: string }> = [];
+
+    for (const user of allUsers) {
+      if (!user.username) {
+        // Generate username from name or ID
+        let username = user.name 
+          ? user.name.toLowerCase().replace(/\s+/g, '_').substring(0, 20)
+          : `user_${user.id.substring(0, 8)}`;
+        
+        // Check if username exists
+        const existing = await this.userRepository.findOne({ 
+          where: { username } 
+        });
+        
+        if (existing && existing.id !== user.id) {
+          username = `${username}_${user.id.substring(0, 4)}`;
+        }
+
+        user.username = username;
+        updates.push({ id: user.id, name: user.name, username });
+        await this.userRepository.save(user);
+      }
+    }
+
+    return {
+      message: 'تم تحديث usernames بنجاح',
+      updated: updates.length,
+      users: updates,
+    };
+  }
 }

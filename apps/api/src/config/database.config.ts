@@ -26,7 +26,7 @@ export const databaseConfig = (): TypeOrmModuleOptions => {
     password: process.env.DATABASE_PASSWORD || 'changeme123',
     database: process.env.DATABASE_NAME || 'arabicmeet',
     entities: [UserEntity, RoomEntity, ParticipantEntity, AuditLogEntity, AdminEntity, RoomMemberEntity],
-    synchronize: true,
+    synchronize: false, // Disabled - will enable after fixing all NULL usernames
     logging: process.env.NODE_ENV === 'development',
   };
 };

@@ -36,7 +36,11 @@ function LobbyContent() {
     try {
       const response = await roomApi.joinRoom(roomId, { userName: userName.trim() })
       
-      router.push(`/room/${roomId}?token=${response.livekitToken}&userId=${response.roomInfo.hostId}&userName=${userName}`)
+      // Get the actual user ID from participants
+      const currentUser = response.participants.find(p => p.displayName === userName.trim())
+      const actualUserId = currentUser?.userId || response.roomInfo.hostId
+      
+      router.push(`/room/${roomId}?token=${response.livekitToken}&userId=${actualUserId}&userName=${encodeURIComponent(userName.trim())}&userRole=${response.userRole}`)
     } catch (err: any) {
       setError(err.response?.data?.message || 'فشل الانضمام للغرفة')
       setIsJoining(false)

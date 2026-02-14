@@ -26,12 +26,14 @@ export class RoomService {
   ) {}
 
   async createRoom(createRoomDto: CreateRoomDto) {
-    let user = await this.userRepository.findOne({ where: { name: createRoomDto.hostName } });
+    let user = createRoomDto.userId
+      ? await this.userRepository.findOne({ where: { id: createRoomDto.userId } })
+      : await this.userRepository.findOne({ where: { name: createRoomDto.hostName } });
     
     if (!user) {
       const username = `user_${uuidv4().substring(0, 8)}`;
       user = this.userRepository.create({
-        id: uuidv4(),
+        id: createRoomDto.userId || uuidv4(),
         name: createRoomDto.hostName,
         username: username,
         password: '', // Temporary password for auto-created users
@@ -133,8 +135,18 @@ export class RoomService {
     if (existingParticipant) {
       participant = existingParticipant;
       role = participant.role;
+      this.logger.log(`🔄 Existing participant found: ${user.name}, role: ${role}`);
     } else {
       role = user.id === room.hostId ? UserRole.HOST : UserRole.PARTICIPANT;
+      
+      // Debug logging
+      this.logger.log(`🔍 Role Assignment Debug:`, {
+        userName: user.name,
+        userId: user.id,
+        roomHostId: room.hostId,
+        isHost: user.id === room.hostId,
+        assignedRole: role,
+      });
 
       participant = this.participantRepository.create({
         userId: user.id,

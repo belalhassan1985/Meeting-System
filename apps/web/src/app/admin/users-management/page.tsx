@@ -181,8 +181,8 @@ export default function UsersManagementPage() {
   }
 
   const filteredUsers = users.filter(user =>
-    user.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    user.name.toLowerCase().includes(searchTerm.toLowerCase())
+    (user.username?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+    (user.name?.toLowerCase() || '').includes(searchTerm.toLowerCase())
   )
 
   if (loading) {
