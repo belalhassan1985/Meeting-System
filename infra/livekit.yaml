@@ -10,7 +10,7 @@ redis:
   address: redis:6379
 
 keys:
-  devkey: secret
+  devkey: secretsecretsecretsecretsecretsecret
 
 room:
   auto_create: true
@@ -18,11 +18,7 @@ room:
   max_participants: 50
 
 turn:
-  enabled: true
-  domain: localhost
-  tls_port: 5349
-  udp_port: 3478
-  external_tls: false
+  enabled: false
 
 logging:
   level: info

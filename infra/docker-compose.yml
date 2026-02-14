@@ -7,11 +7,11 @@ services:
     environment:
       POSTGRES_DB: arabicmeet
       POSTGRES_USER: arabicmeet
-      POSTGRES_PASSWORD: changeme123
+      POSTGRES_PASSWORD: arabicmeet123
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
-      - "5432:5432"
+      - "5433:5432"
     networks:
       - arabicmeet-network
     healthcheck:

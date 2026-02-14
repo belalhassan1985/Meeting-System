@@ -4,8 +4,9 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { Trash2, ArrowLeft, Lock, Users, Unlock, Video, Plus, X } from 'lucide-react'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 
@@ -13,8 +14,13 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
 
 export default function RoomsManagement() {
   const [page, setPage] = useState(1)
-  const [showCreateDialog, setShowCreateDialog] = useState(false)
-  const [newRoom, setNewRoom] = useState({ name: '', description: '', maxParticipants: 10 })
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
+  const [newRoom, setNewRoom] = useState({
+    name: '',
+    description: '',
+    maxParticipants: 25,
+    hostName: '',
+  })
   const queryClient = useQueryClient()
   const router = useRouter()
 
@@ -41,16 +47,16 @@ export default function RoomsManagement() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          roomId: roomId,
           userId: admin.id,
-          userName: admin.fullName || admin.username,
-          userRole: 'host',
+          userName: admin.name || admin.username || 'Admin',
         }),
       })
 
       if (!res.ok) throw new Error('Failed to join room')
 
-      const { token } = await res.json()
-      router.push(`/room/${roomId}?token=${token}&userId=${admin.id}&userName=${encodeURIComponent(admin.fullName || admin.username)}&userRole=host`)
+      const { livekitToken, userRole } = await res.json()
+      router.push(`/room/${roomId}?token=${livekitToken}&userId=${admin.id}&userName=${encodeURIComponent(admin.name || admin.username)}&userRole=${userRole}`)
     } catch (error) {
       console.error('Error joining room:', error)
       alert('حدث خطأ في الانضمام للغرفة')
@@ -96,26 +102,29 @@ export default function RoomsManagement() {
   })
 
   const createRoomMutation = useMutation({
-    mutationFn: async (roomData: { name: string; description: string; maxParticipants: number }) => {
+    mutationFn: async (roomData: typeof newRoom) => {
       const res = await fetch(`${API_URL}/rooms`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(roomData),
       })
-      if (!res.ok) throw new Error('Failed to create room')
+      if (!res.ok) {
+        const error = await res.json()
+        throw new Error(error.message || 'Failed to create room')
+      }
       return res.json()
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-rooms'] })
-      setShowCreateDialog(false)
-      setNewRoom({ name: '', description: '', maxParticipants: 10 })
+      setIsCreateModalOpen(false)
+      setNewRoom({ name: '', description: '', maxParticipants: 25, hostName: '' })
     },
   })
 
   const handleCreateRoom = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!newRoom.name.trim()) {
-      alert('يرجى إدخال اسم الغرفة')
+    if (!newRoom.name.trim() || !newRoom.hostName.trim()) {
+      alert('يرجى ملء جميع الحقول المطلوبة')
       return
     }
     await createRoomMutation.mutateAsync(newRoom)
@@ -155,78 +164,97 @@ export default function RoomsManagement() {
           <p className="text-gray-600">عرض وإدارة جميع الغرف في النظام</p>
         </div>
         <Button
-          onClick={() => setShowCreateDialog(true)}
-          className="bg-blue-600 hover:bg-blue-700"
-          size="lg"
+          onClick={() => setIsCreateModalOpen(true)}
+          className="bg-green-600 hover:bg-green-700"
         >
-          <Plus className="h-5 w-5 ml-2" />
+          <Plus className="h-4 w-4 ml-2" />
           إنشاء غرفة جديدة
         </Button>
       </div>
 
-      {/* Create Room Dialog */}
-      {showCreateDialog && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowCreateDialog(false)}>
-          <Card className="w-full max-w-md mx-4" onClick={(e) => e.stopPropagation()}>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle>إنشاء غرفة جديدة</CardTitle>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setShowCreateDialog(false)}
+      {/* Create Room Modal */}
+      {isCreateModalOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-bold">إنشاء غرفة جديدة</h2>
+              <button
+                onClick={() => setIsCreateModalOpen(false)}
+                className="text-gray-500 hover:text-gray-700"
               >
-                <X className="h-4 w-4" />
-              </Button>
-            </CardHeader>
-            <CardContent>
-              <form onSubmit={handleCreateRoom} className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium mb-2">اسم الغرفة *</label>
-                  <Input
-                    value={newRoom.name}
-                    onChange={(e) => setNewRoom({ ...newRoom, name: e.target.value })}
-                    placeholder="مثال: غرفة الاجتماعات"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-2">الوصف</label>
-                  <Input
-                    value={newRoom.description}
-                    onChange={(e) => setNewRoom({ ...newRoom, description: e.target.value })}
-                    placeholder="وصف مختصر للغرفة"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-2">الحد الأقصى للمشاركين</label>
-                  <Input
-                    type="number"
-                    min="2"
-                    max="100"
-                    value={newRoom.maxParticipants}
-                    onChange={(e) => setNewRoom({ ...newRoom, maxParticipants: parseInt(e.target.value) || 10 })}
-                  />
-                </div>
-                <div className="flex gap-2 pt-4">
-                  <Button
-                    type="submit"
-                    disabled={createRoomMutation.isPending}
-                    className="flex-1"
-                  >
-                    {createRoomMutation.isPending ? 'جاري الإنشاء...' : 'إنشاء'}
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => setShowCreateDialog(false)}
-                    className="flex-1"
-                  >
-                    إلغاء
-                  </Button>
-                </div>
-              </form>
-            </CardContent>
-          </Card>
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <form onSubmit={handleCreateRoom} className="space-y-4">
+              <div>
+                <Label htmlFor="roomName">اسم الغرفة *</Label>
+                <Input
+                  id="roomName"
+                  value={newRoom.name}
+                  onChange={(e) => setNewRoom({ ...newRoom, name: e.target.value })}
+                  placeholder="أدخل اسم الغرفة"
+                  required
+                  minLength={3}
+                  maxLength={100}
+                />
+              </div>
+              <div>
+                <Label htmlFor="hostName">اسم المضيف *</Label>
+                <Input
+                  id="hostName"
+                  value={newRoom.hostName}
+                  onChange={(e) => setNewRoom({ ...newRoom, hostName: e.target.value })}
+                  placeholder="أدخل اسم المضيف"
+                  required
+                  minLength={2}
+                  maxLength={50}
+                />
+              </div>
+              <div>
+                <Label htmlFor="description">الوصف</Label>
+                <Input
+                  id="description"
+                  value={newRoom.description}
+                  onChange={(e) => setNewRoom({ ...newRoom, description: e.target.value })}
+                  placeholder="وصف اختياري للغرفة"
+                  maxLength={500}
+                />
+              </div>
+              <div>
+                <Label htmlFor="maxParticipants">الحد الأقصى للمشاركين</Label>
+                <Input
+                  id="maxParticipants"
+                  type="number"
+                  value={newRoom.maxParticipants}
+                  onChange={(e) => setNewRoom({ ...newRoom, maxParticipants: parseInt(e.target.value) || 25 })}
+                  min={2}
+                  max={50}
+                />
+              </div>
+              <div className="flex gap-3 pt-4">
+                <Button
+                  type="submit"
+                  className="flex-1 bg-green-600 hover:bg-green-700"
+                  disabled={createRoomMutation.isPending}
+                >
+                  {createRoomMutation.isPending ? 'جاري الإنشاء...' : 'إنشاء الغرفة'}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setIsCreateModalOpen(false)}
+                  className="flex-1"
+                >
+                  إلغاء
+                </Button>
+              </div>
+              {createRoomMutation.isError && (
+                <p className="text-red-500 text-sm text-center">
+                  {createRoomMutation.error?.message || 'حدث خطأ في إنشاء الغرفة'}
+                </p>
+              )}
+            </form>
+          </div>
         </div>
       )}
 
