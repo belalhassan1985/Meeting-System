@@ -34,7 +34,6 @@ COPY --from=builder /app/packages/shared/dist ./packages/shared/dist
 # Copy built web app
 COPY --from=builder /app/apps/web/package.json ./apps/web/
 COPY --from=builder /app/apps/web/.next ./apps/web/.next
-COPY --from=builder /app/apps/web/public ./apps/web/public
 COPY --from=builder /app/apps/web/next.config.js ./apps/web/
 
 # Install production dependencies only
