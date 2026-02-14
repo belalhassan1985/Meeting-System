@@ -16,8 +16,9 @@ export const roomApi = {
     return response.data
   },
 
-  getRooms: async (): Promise<Room[]> => {
-    const response = await api.get('/rooms')
+  getRooms: async (userId?: string | null): Promise<Room[]> => {
+    const params = userId ? { userId } : {}
+    const response = await api.get('/rooms', { params })
     return response.data
   },
 

@@ -2,20 +2,32 @@
 
 import { useQuery } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
+import { useEffect, useState } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { roomApi } from '@/lib/api'
-import { Users, Clock, Loader2 } from 'lucide-react'
+import { Users, Clock, Loader2, AlertCircle } from 'lucide-react'
 
 export function RoomList() {
   const router = useRouter()
+  const [userId, setUserId] = useState<string | null>(null)
+
+  useEffect(() => {
+    const userInfo = localStorage.getItem('userInfo')
+    if (userInfo) {
+      const user = JSON.parse(userInfo)
+      setUserId(user.id)
+    }
+  }, [])
+
   const { data: rooms, isLoading } = useQuery({
-    queryKey: ['rooms'],
-    queryFn: roomApi.getRooms,
+    queryKey: ['rooms', userId],
+    queryFn: () => roomApi.getRooms(userId),
+    enabled: !!userId,
     refetchInterval: 5000,
   })
 
-  if (isLoading) {
+  if (isLoading || !userId) {
     return (
       <Card>
         <CardContent className="flex items-center justify-center py-12">
@@ -29,9 +41,14 @@ export function RoomList() {
     return (
       <Card>
         <CardContent className="flex flex-col items-center justify-center py-12 text-center">
-          <Users className="h-12 w-12 text-muted-foreground mb-4" />
-          <p className="text-lg font-medium">لا توجد غرف نشطة حالياً</p>
-          <p className="text-sm text-muted-foreground">أنشئ غرفة جديدة للبدء</p>
+          <AlertCircle className="h-12 w-12 text-muted-foreground mb-4" />
+          <p className="text-lg font-medium">لا توجد غرف متاحة</p>
+          <p className="text-sm text-muted-foreground mt-2">
+            لم يتم تسجيلك في أي غرفة بعد
+          </p>
+          <p className="text-xs text-muted-foreground mt-1">
+            تواصل مع المسؤول لإضافتك إلى الغرف
+          </p>
         </CardContent>
       </Card>
     )

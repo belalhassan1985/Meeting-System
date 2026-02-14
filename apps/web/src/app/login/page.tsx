@@ -22,7 +22,7 @@ export default function LoginPage() {
     setLoading(true)
 
     try {
-      const res = await fetch(`${API_URL}/auth/login`, {
+      const res = await fetch(`${API_URL}/users/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, password }),
@@ -33,11 +33,15 @@ export default function LoginPage() {
       }
 
       const data = await res.json()
-      localStorage.setItem('userToken', data.token)
-      localStorage.setItem('userInfo', JSON.stringify(data.admin))
+      localStorage.setItem('token', data.token)
+      localStorage.setItem('userInfo', JSON.stringify(data.user))
       
-      // توجيه للوحة الرئيسية
-      router.push('/dashboard')
+      // Redirect based on role
+      if (data.user.role === 'admin') {
+        router.push('/admin')
+      } else {
+        router.push('/dashboard')
+      }
     } catch (err: any) {
       setError(err.message)
     } finally {

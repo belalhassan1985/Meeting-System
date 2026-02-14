@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Fix User Roles</title>
+    <meta charset="UTF-8">
+</head>
+<body>
+    <h1>تحديث أدوار المستخدمين</h1>
+    <button onclick="fixRoles()">تحديث الأدوار</button>
+    <pre id="result"></pre>
+
+    <script>
+        async function fixRoles() {
+            const resultEl = document.getElementById('result');
+            resultEl.textContent = 'جاري التحديث...';
+            
+            try {
+                const response = await fetch('http://localhost:3001/users/fix-roles', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                const data = await response.json();
+                resultEl.textContent = JSON.stringify(data, null, 2);
+            } catch (error) {
+                resultEl.textContent = 'خطأ: ' + error.message;
+            }
+        }
+    </script>
+</body>
+</html>

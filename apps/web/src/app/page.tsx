@@ -8,13 +8,20 @@ export default function HomePage() {
 
   useEffect(() => {
     // التحقق من تسجيل الدخول
-    const token = localStorage.getItem('userToken')
+    const token = localStorage.getItem('token')
+    const userInfo = localStorage.getItem('userInfo')
     
-    if (token) {
-      // إذا كان مسجل دخول، توجيه للوحة التحكم
-      router.push('/dashboard')
+    if (token && userInfo) {
+      const user = JSON.parse(userInfo)
+      
+      // التوجيه بناءً على الـ role
+      if (user.role === 'admin') {
+        router.push('/admin')
+      } else {
+        router.push('/dashboard')
+      }
     } else {
-      // إذا لم يكن مسجل دخول، توجيه لصفحة تسجيل الدخول
+      // إذا لم يكن مسجل دخول، توجيه لصفحة تسجيل دخول المستخدمين
       router.push('/login')
     }
   }, [router])

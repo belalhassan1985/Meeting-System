@@ -1,10 +1,14 @@
-import { Controller, Get, Post, Body, Param, HttpCode, HttpStatus } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, HttpCode, HttpStatus, Query } from '@nestjs/common';
 import { RoomService } from '../services/room.service';
+import { RoomMemberService } from '../services/room-member.service';
 import { CreateRoomDto, JoinRoomDto } from '@arabic-meet/shared';
 
 @Controller('rooms')
 export class RoomController {
-  constructor(private readonly roomService: RoomService) {}
+  constructor(
+    private readonly roomService: RoomService,
+    private readonly roomMemberService: RoomMemberService,
+  ) {}
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
@@ -13,7 +17,12 @@ export class RoomController {
   }
 
   @Get()
-  async getRooms() {
+  async getRooms(@Query('userId') userId?: string) {
+    if (userId) {
+      // إرجاع الغرف المسجل فيها المستخدم فقط
+      return this.roomMemberService.getUserRooms(userId);
+    }
+    // إرجاع جميع الغرف (للمسؤولين)
     return this.roomService.getRooms();
   }
 

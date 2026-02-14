@@ -4,14 +4,16 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Trash2, ArrowLeft, Lock, Users, Unlock } from 'lucide-react'
+import { Trash2, ArrowLeft, Lock, Users, Unlock, Video } from 'lucide-react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
 
 export default function RoomsManagement() {
   const [page, setPage] = useState(1)
   const queryClient = useQueryClient()
+  const router = useRouter()
 
   const { data, isLoading } = useQuery({
     queryKey: ['admin-rooms', page],
@@ -21,6 +23,36 @@ export default function RoomsManagement() {
       return res.json()
     },
   })
+
+  const handleJoinRoom = async (roomId: string) => {
+    try {
+      const adminInfo = localStorage.getItem('userInfo')
+      if (!adminInfo) {
+        alert('يجب تسجيل الدخول أولاً')
+        return
+      }
+
+      const admin = JSON.parse(adminInfo)
+      
+      const res = await fetch(`${API_URL}/rooms/${roomId}/join`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: admin.id,
+          userName: admin.fullName || admin.username,
+          userRole: 'host',
+        }),
+      })
+
+      if (!res.ok) throw new Error('Failed to join room')
+
+      const { token } = await res.json()
+      router.push(`/room/${roomId}?token=${token}&userId=${admin.id}&userName=${encodeURIComponent(admin.fullName || admin.username)}&userRole=host`)
+    } catch (error) {
+      console.error('Error joining room:', error)
+      alert('حدث خطأ في الانضمام للغرفة')
+    }
+  }
 
   const deleteMutation = useMutation({
     mutationFn: async (roomId: string) => {
@@ -136,6 +168,26 @@ export default function RoomsManagement() {
                     </div>
                   </div>
                   <div className="flex gap-2">
+                    {room.isActive && (
+                      <Button
+                        variant="default"
+                        size="sm"
+                        onClick={() => handleJoinRoom(room.id)}
+                        className="bg-blue-600 hover:bg-blue-700"
+                      >
+                        <Video className="h-4 w-4 ml-1" />
+                        انضمام
+                      </Button>
+                    )}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => router.push(`/admin/rooms/${room.id}/members`)}
+                      className="border-purple-500 text-purple-600 hover:bg-purple-50"
+                    >
+                      <Users className="h-4 w-4 ml-1" />
+                      الأعضاء
+                    </Button>
                     {room.isActive ? (
                       <Button
                         variant="outline"

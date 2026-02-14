@@ -19,7 +19,7 @@ import { Button } from '@/components/ui/button'
 
 const menuItems = [
   { href: '/admin', icon: LayoutDashboard, label: 'لوحة التحكم' },
-  { href: '/admin/users', icon: Users, label: 'المستخدمين' },
+  { href: '/admin/users-management', icon: Users, label: 'إدارة المستخدمين' },
   { href: '/admin/rooms', icon: Video, label: 'الغرف' },
   { href: '/admin/audit-logs', icon: FileText, label: 'سجلات الأحداث' },
   { href: '/admin/admins', icon: UserCog, label: 'المسؤولين' },
@@ -32,19 +32,27 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const pathname = usePathname()
 
   useEffect(() => {
-    const token = localStorage.getItem('userToken')
-    const admin = localStorage.getItem('userInfo')
+    const token = localStorage.getItem('token')
+    const user = localStorage.getItem('userInfo')
     
-    if (!token || !admin) {
+    if (!token || !user) {
       router.push('/login')
       return
     }
     
-    setAdminInfo(JSON.parse(admin))
+    const parsedUser = JSON.parse(user)
+    
+    // التحقق من أن المستخدم admin
+    if (parsedUser.role !== 'admin') {
+      router.push('/dashboard')
+      return
+    }
+    
+    setAdminInfo(parsedUser)
   }, [router])
 
   const handleLogout = () => {
-    localStorage.removeItem('userToken')
+    localStorage.removeItem('token')
     localStorage.removeItem('userInfo')
     router.push('/login')
   }
