@@ -9,11 +9,13 @@ export class LiveKitService {
   private apiKey: string;
   private apiSecret: string;
   private livekitUrl: string;
+  private livekitPublicUrl: string;
 
   constructor() {
     this.apiKey = process.env.LIVEKIT_API_KEY || 'devkey';
     this.apiSecret = process.env.LIVEKIT_API_SECRET || 'secret';
-    this.livekitUrl = process.env.LIVEKIT_URL || 'ws://localhost:7880';
+    this.livekitUrl = process.env.LIVEKIT_URL || 'http://localhost:7880';
+    this.livekitPublicUrl = process.env.LIVEKIT_PUBLIC_URL || process.env.LIVEKIT_URL || 'ws://localhost:7880';
     
     this.roomService = new RoomServiceClient(
       this.livekitUrl,
@@ -101,6 +103,6 @@ export class LiveKitService {
   }
 
   getLivekitUrl(): string {
-    return this.livekitUrl;
+    return this.livekitPublicUrl;
   }
 }
