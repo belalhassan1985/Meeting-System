@@ -1,0 +1,120 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: arabicmeet-postgres
+    environment:
+      POSTGRES_DB: arabicmeet
+      POSTGRES_USER: arabicmeet
+      POSTGRES_PASSWORD: changeme123
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - arabicmeet-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U arabicmeet"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  livekit:
+    image: livekit/livekit-server:latest
+    container_name: arabicmeet-livekit
+    command: --config /etc/livekit.yaml
+    volumes:
+      - ./livekit.yaml:/etc/livekit.yaml
+    ports:
+      - "7880:7880"
+      - "7881:7881"
+      - "7882:7882/udp"
+    networks:
+      - arabicmeet-network
+    depends_on:
+      - redis
+
+  redis:
+    image: redis:7-alpine
+    container_name: arabicmeet-redis
+    networks:
+      - arabicmeet-network
+    volumes:
+      - redis_data:/data
+
+  coturn:
+    image: coturn/coturn:latest
+    container_name: arabicmeet-coturn
+    network_mode: host
+    volumes:
+      - ./coturn.conf:/etc/coturn/turnserver.conf
+    command: -c /etc/coturn/turnserver.conf
+
+  api:
+    build:
+      context: ../
+      dockerfile: ./infra/Dockerfile.api
+    container_name: arabicmeet-api
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+      DATABASE_HOST: postgres
+      DATABASE_PORT: 5432
+      DATABASE_USER: arabicmeet
+      DATABASE_PASSWORD: changeme123
+      DATABASE_NAME: arabicmeet
+      LIVEKIT_API_KEY: devkey
+      LIVEKIT_API_SECRET: secret
+      LIVEKIT_URL: ws://livekit:7880
+      JWT_SECRET: your-super-secret-jwt-key-change-in-production
+      CORS_ORIGIN: http://localhost:3000
+    ports:
+      - "3001:3001"
+    networks:
+      - arabicmeet-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      livekit:
+        condition: service_started
+    restart: unless-stopped
+
+  web:
+    build:
+      context: ../
+      dockerfile: ./infra/Dockerfile.web
+    container_name: arabicmeet-web
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:3001
+      NEXT_PUBLIC_LIVEKIT_URL: ws://localhost:7880
+    ports:
+      - "3000:3000"
+    networks:
+      - arabicmeet-network
+    depends_on:
+      - api
+    restart: unless-stopped
+
+  nginx:
+    image: nginx:alpine
+    container_name: arabicmeet-nginx
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    ports:
+      - "80:80"
+      - "443:443"
+    networks:
+      - arabicmeet-network
+    depends_on:
+      - web
+      - api
+    restart: unless-stopped
+
+networks:
+  arabicmeet-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  redis_data:

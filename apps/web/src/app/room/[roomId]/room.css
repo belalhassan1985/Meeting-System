@@ -1,0 +1,16 @@
+/* Hide default LiveKit leave button - try multiple selectors */
+.lk-disconnect-button,
+.lk-button[aria-label*="Leave"],
+button[aria-label*="Leave"],
+.lk-control-bar .lk-disconnect-button,
+.lk-control-bar button[class*="disconnect"] {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+/* Ensure our custom leave button is visible */
+.custom-leave-button {
+  display: flex !important;
+}

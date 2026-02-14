@@ -1,0 +1,30 @@
+version: '3.8'
+
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: arabicmeet-redis
+    ports:
+      - "6379:6379"
+    networks:
+      - livekit-net
+
+  livekit:
+    image: livekit/livekit-server:latest
+    container_name: arabicmeet-livekit
+    command: --config /etc/livekit.yaml --node-ip=localhost
+    ports:
+      - "7880:7880"
+      - "7881:7881"
+      - "50000-50100:50000-50100/udp"
+    volumes:
+      - ./livekit-simple.yaml:/etc/livekit.yaml
+    depends_on:
+      - redis
+    networks:
+      - livekit-net
+    restart: unless-stopped
+
+networks:
+  livekit-net:
+    driver: bridge
