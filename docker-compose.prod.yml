@@ -1,24 +1,6 @@
 version: '3.8'
 
 services:
-  postgres:
-    image: postgres:16-alpine
-    container_name: arabicmeet-postgres-prod
-    environment:
-      POSTGRES_USER: ${DATABASE_USER:-arabicmeet}
-      POSTGRES_PASSWORD: ${DATABASE_PASSWORD}
-      POSTGRES_DB: ${DATABASE_NAME:-arabicmeet}
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    ports:
-      - "${DATABASE_PORT:-5432}:5432"
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DATABASE_USER:-arabicmeet}"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
   redis:
     image: redis:7-alpine
     container_name: arabicmeet-redis-prod
@@ -53,8 +35,8 @@ services:
     environment:
       NODE_ENV: production
       PORT: 3001
-      DATABASE_HOST: postgres
-      DATABASE_PORT: 5432
+      DATABASE_HOST: ${DATABASE_HOST}
+      DATABASE_PORT: ${DATABASE_PORT:-5432}
       DATABASE_USER: ${DATABASE_USER:-arabicmeet}
       DATABASE_PASSWORD: ${DATABASE_PASSWORD}
       DATABASE_NAME: ${DATABASE_NAME:-arabicmeet}
@@ -66,8 +48,6 @@ services:
     ports:
       - "3001:3001"
     depends_on:
-      postgres:
-        condition: service_healthy
       redis:
         condition: service_healthy
       livekit:
@@ -89,5 +69,4 @@ services:
       - api
     restart: unless-stopped
 
-volumes:
-  postgres_data:
+volumes: {}
