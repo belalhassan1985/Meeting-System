@@ -209,6 +209,18 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
     }, 100)
   }
 
+  // Admin controls: stop screen share
+  const stopScreenShare = async (participant: RemoteParticipant) => {
+    if (!isAdmin) return
+    
+    const encoder = new TextEncoder()
+    const data = encoder.encode(JSON.stringify({
+      type: 'admin-stop-screenshare',
+      targetId: participant.identity,
+    }))
+    await localParticipant.publishData(data, { reliable: true })
+  }
+
   // Admin controls: kick participant
   const kickParticipant = async (participantId: string) => {
     if (!isAdmin) return
@@ -249,6 +261,12 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
         await localParticipant.setMicrophoneEnabled(false)
       } else if (data.type === 'admin-disable-camera') {
         await localParticipant.setCameraEnabled(false)
+      } else if (data.type === 'admin-stop-screenshare') {
+        // Admin stopped screen share - stop sharing
+        const screenShareTrack = localParticipant.getTrackPublication(Track.Source.ScreenShare)
+        if (screenShareTrack) {
+          await localParticipant.unpublishTrack(screenShareTrack.track!)
+        }
       } else if (data.type === 'admin-kick') {
         // Participant is being kicked - disconnect and redirect
         await room?.disconnect()
@@ -268,11 +286,13 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
     setPinnedParticipantId(prev => prev === participantId ? null : participantId)
   }
 
-  // Find screen share track - it should be the main view
+  // Find screen share track
   const screenShareTrack = tracks.find(t => t.publication?.source === Track.Source.ScreenShare)
   
-  // If there's a screen share, show it as main. Otherwise, show pinned track
-  const mainTrack = screenShareTrack || tracks.find(t => t.participant.identity === pinnedParticipantId)
+  // Priority: Pinned track (if set) > Screen share > Nothing
+  // This allows admin to override screen share by pinning someone
+  const pinnedTrack = tracks.find(t => t.participant.identity === pinnedParticipantId)
+  const mainTrack = pinnedTrack || screenShareTrack
   
   // Other tracks are all tracks except the main one
   const otherTracks = mainTrack 
@@ -304,11 +324,27 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
         
         {/* Screen share indicator */}
         {isScreenShare && (
-          <div className="absolute top-2 left-1/2 transform -translate-x-1/2 bg-blue-600 text-white px-4 py-2 rounded-lg shadow-lg z-20">
+          <div className="absolute top-2 left-1/2 transform -translate-x-1/2 bg-blue-600 text-white px-4 py-2 rounded-lg shadow-lg z-20 flex items-center gap-3">
             <div className="flex items-center gap-2">
               <Video className="w-5 h-5" />
               <span className="font-semibold">مشاركة الشاشة - {participant.name || participant.identity}</span>
             </div>
+            {/* Admin: Stop screen share button */}
+            {isAdmin && !isLocal && (
+              <button
+                onClick={() => {
+                  if (participant instanceof RemoteParticipant) {
+                    if (confirm(`هل تريد إيقاف مشاركة الشاشة لـ ${participant.name || participant.identity}؟`)) {
+                      stopScreenShare(participant)
+                    }
+                  }
+                }}
+                className="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded transition text-sm font-semibold"
+                title="إيقاف مشاركة الشاشة"
+              >
+                إيقاف
+              </button>
+            )}
           </div>
         )}
 
