@@ -1,10 +1,11 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, IsNull } from 'typeorm';
-import { UserEntity } from '../entities/user.entity';
+import { UserEntity, UserRole } from '../entities/user.entity';
 import { RoomEntity } from '../entities/room.entity';
 import { ParticipantEntity } from '../entities/participant.entity';
 import { AuditLogEntity } from '../entities/audit-log.entity';
+import * as bcrypt from 'bcrypt';
 
 @Injectable()
 export class AdminService {
@@ -256,5 +257,76 @@ export class AdminService {
         details: 'Participant kicked by admin',
       } as Partial<AuditLogEntity>),
     );
+  }
+
+  // Admin user management (UserEntity with ADMIN role)
+  async getAdminUsers() {
+    const adminUsers = await this.userRepository.find({
+      where: { role: UserRole.ADMIN },
+      select: ['id', 'name', 'username', 'email', 'role', 'isActive', 'createdAt'],
+      order: { createdAt: 'DESC' },
+    });
+    return adminUsers;
+  }
+
+  async createAdminUser(data: { username: string; password: string; name: string; email?: string }) {
+    const existingUser = await this.userRepository.findOne({
+      where: [{ username: data.username }, { email: data.email }],
+    });
+
+    if (existingUser) {
+      throw new ConflictException('Username or email already exists');
+    }
+
+    const hashedPassword = await bcrypt.hash(data.password, 10);
+
+    const adminUser = this.userRepository.create({
+      username: data.username,
+      password: hashedPassword,
+      name: data.name,
+      email: data.email,
+      role: UserRole.ADMIN,
+      isActive: true,
+    });
+
+    await this.userRepository.save(adminUser);
+
+    return {
+      id: adminUser.id,
+      username: adminUser.username,
+      name: adminUser.name,
+      email: adminUser.email,
+      role: adminUser.role,
+    };
+  }
+
+  async updateAdminUser(id: string, data: Partial<UserEntity>) {
+    const user = await this.userRepository.findOne({ where: { id, role: UserRole.ADMIN } });
+    
+    if (!user) {
+      throw new NotFoundException('Admin user not found');
+    }
+
+    if (data.password) {
+      data.password = await bcrypt.hash(data.password, 10);
+    }
+
+    await this.userRepository.update(id, data);
+    
+    return this.userRepository.findOne({ 
+      where: { id },
+      select: ['id', 'name', 'username', 'email', 'role', 'isActive', 'createdAt'],
+    });
+  }
+
+  async deleteAdminUser(id: string) {
+    const user = await this.userRepository.findOne({ where: { id, role: UserRole.ADMIN } });
+    
+    if (!user) {
+      throw new NotFoundException('Admin user not found');
+    }
+
+    await this.participantRepository.delete({ userId: id });
+    await this.userRepository.delete(id);
   }
 }

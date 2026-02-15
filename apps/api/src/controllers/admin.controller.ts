@@ -1,4 +1,4 @@
-import { Controller, Get, Delete, Patch, Param, Body, HttpCode, HttpStatus, Query, Put } from '@nestjs/common';
+import { Controller, Get, Delete, Patch, Param, Body, HttpCode, HttpStatus, Query, Put, Post } from '@nestjs/common';
 import { AdminService } from '../services/admin.service';
 import { AuthService } from '../services/auth.service';
 
@@ -89,5 +89,28 @@ export class AdminController {
   @HttpCode(HttpStatus.NO_CONTENT)
   async deleteAdmin(@Param('id') id: string) {
     return this.authService.deleteAdmin(id);
+  }
+
+  // Admin Users (UserEntity with ADMIN role)
+  @Get('admin-users')
+  async getAdminUsers() {
+    return this.adminService.getAdminUsers();
+  }
+
+  @Post('admin-users')
+  @HttpCode(HttpStatus.CREATED)
+  async createAdminUser(@Body() data: { username: string; password: string; name: string; email?: string }) {
+    return this.adminService.createAdminUser(data);
+  }
+
+  @Put('admin-users/:id')
+  async updateAdminUser(@Param('id') id: string, @Body() data: any) {
+    return this.adminService.updateAdminUser(id, data);
+  }
+
+  @Delete('admin-users/:id')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async deleteAdminUser(@Param('id') id: string) {
+    return this.adminService.deleteAdminUser(id);
   }
 }

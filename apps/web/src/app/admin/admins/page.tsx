@@ -13,42 +13,46 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
 export default function AdminsManagement() {
   const [showAddDialog, setShowAddDialog] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
-  const [formData, setFormData] = useState({ username: '', password: '', fullName: '' })
+  const [formData, setFormData] = useState({ username: '', password: '', name: '', email: '' })
   const queryClient = useQueryClient()
 
   const { data: admins, isLoading } = useQuery({
-    queryKey: ['admins'],
+    queryKey: ['admin-users'],
     queryFn: async () => {
       const token = localStorage.getItem('adminToken')
-      const res = await fetch(`${API_URL}/admin/admins`, {
+      const res = await fetch(`${API_URL}/admin/admin-users`, {
         headers: { Authorization: `Bearer ${token}` },
       })
-      if (!res.ok) throw new Error('Failed to fetch admins')
+      if (!res.ok) throw new Error('Failed to fetch admin users')
       return res.json()
     },
   })
 
   const addMutation = useMutation({
     mutationFn: async (data: typeof formData) => {
-      const res = await fetch(`${API_URL}/auth/register`, {
+      const token = localStorage.getItem('adminToken')
+      const res = await fetch(`${API_URL}/admin/admin-users`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
         body: JSON.stringify(data),
       })
-      if (!res.ok) throw new Error('Failed to add admin')
+      if (!res.ok) throw new Error('Failed to add admin user')
       return res.json()
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['admins'] })
+      queryClient.invalidateQueries({ queryKey: ['admin-users'] })
       setShowAddDialog(false)
-      setFormData({ username: '', password: '', fullName: '' })
+      setFormData({ username: '', password: '', name: '', email: '' })
     },
   })
 
   const updateMutation = useMutation({
     mutationFn: async ({ id, data }: { id: string; data: any }) => {
       const token = localStorage.getItem('adminToken')
-      const res = await fetch(`${API_URL}/admin/admins/${id}`, {
+      const res = await fetch(`${API_URL}/admin/admin-users/${id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -56,38 +60,41 @@ export default function AdminsManagement() {
         },
         body: JSON.stringify(data),
       })
-      if (!res.ok) throw new Error('Failed to update admin')
+      if (!res.ok) throw new Error('Failed to update admin user')
       return res.json()
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['admins'] })
+      queryClient.invalidateQueries({ queryKey: ['admin-users'] })
       setEditingId(null)
-      setFormData({ username: '', password: '', fullName: '' })
+      setFormData({ username: '', password: '', name: '', email: '' })
     },
   })
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
       const token = localStorage.getItem('adminToken')
-      const res = await fetch(`${API_URL}/admin/admins/${id}`, {
+      const res = await fetch(`${API_URL}/admin/admin-users/${id}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       })
-      if (!res.ok) throw new Error('Failed to delete admin')
+      if (!res.ok) throw new Error('Failed to delete admin user')
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['admins'] })
+      queryClient.invalidateQueries({ queryKey: ['admin-users'] })
     },
   })
 
   const handleAdd = () => {
-    if (formData.username && formData.password && formData.fullName) {
+    if (formData.username && formData.password && formData.name) {
       addMutation.mutate(formData)
     }
   }
 
   const handleUpdate = (id: string) => {
-    const updateData: any = { fullName: formData.fullName }
+    const updateData: any = { name: formData.name }
+    if (formData.email) {
+      updateData.email = formData.email
+    }
     if (formData.password) {
       updateData.password = formData.password
     }
@@ -102,7 +109,7 @@ export default function AdminsManagement() {
 
   const startEdit = (admin: any) => {
     setEditingId(admin.id)
-    setFormData({ username: admin.username, password: '', fullName: admin.fullName })
+    setFormData({ username: admin.username, password: '', name: admin.name, email: admin.email || '' })
   }
 
   if (isLoading) {
@@ -118,7 +125,7 @@ export default function AdminsManagement() {
       <div className="mb-6 flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">إدارة المسؤولين</h1>
-          <p className="text-gray-600">إضافة وتعديل وحذف حسابات المسؤولين</p>
+          <p className="text-gray-600">إضافة وتعديل وحذف مستخدمين بصلاحية مسؤول (ADMIN)</p>
         </div>
         <Button onClick={() => setShowAddDialog(true)} className="gap-2">
           <Plus className="h-4 w-4" />
@@ -140,9 +147,14 @@ export default function AdminsManagement() {
                 {editingId === admin.id ? (
                   <div className="flex-1 flex gap-3">
                     <Input
-                      placeholder="الاسم الكامل"
-                      value={formData.fullName}
-                      onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
+                      placeholder="الاسم"
+                      value={formData.name}
+                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    />
+                    <Input
+                      placeholder="البريد الإلكتروني (اختياري)"
+                      value={formData.email}
+                      onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                     />
                     <Input
                       type="password"
@@ -162,7 +174,7 @@ export default function AdminsManagement() {
                       variant="outline"
                       onClick={() => {
                         setEditingId(null)
-                        setFormData({ username: '', password: '', fullName: '' })
+                        setFormData({ username: '', password: '', name: '', email: '' })
                       }}
                     >
                       <X className="h-4 w-4" />
@@ -171,8 +183,12 @@ export default function AdminsManagement() {
                 ) : (
                   <>
                     <div className="flex-1">
-                      <h3 className="font-semibold text-lg">{admin.fullName}</h3>
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-semibold text-lg">{admin.name}</h3>
+                        <span className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded">ADMIN</span>
+                      </div>
                       <p className="text-sm text-gray-600">@{admin.username}</p>
+                      {admin.email && <p className="text-sm text-gray-500">{admin.email}</p>}
                       <p className="text-xs text-gray-400 mt-1">
                         تاريخ الإنشاء: {new Date(admin.createdAt).toLocaleDateString('ar-SA')}
                       </p>
@@ -221,11 +237,20 @@ export default function AdminsManagement() {
               />
             </div>
             <div>
-              <label className="text-sm font-medium">الاسم الكامل</label>
+              <label className="text-sm font-medium">الاسم</label>
               <Input
-                value={formData.fullName}
-                onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
-                placeholder="الاسم الكامل"
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                placeholder="الاسم"
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium">البريد الإلكتروني (اختياري)</label>
+              <Input
+                type="email"
+                value={formData.email}
+                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                placeholder="email@example.com"
               />
             </div>
             <div>
@@ -237,19 +262,24 @@ export default function AdminsManagement() {
                 placeholder="كلمة المرور"
               />
             </div>
+            <div className="bg-blue-50 border border-blue-200 rounded p-3">
+              <p className="text-sm text-blue-800">
+                💡 سيتم إنشاء مستخدم بصلاحية <strong>ADMIN</strong> يمكنه إدارة الغرف والمستخدمين
+              </p>
+            </div>
             <div className="flex gap-2">
               <Button
                 onClick={handleAdd}
-                disabled={addMutation.isPending || !formData.username || !formData.password || !formData.fullName}
+                disabled={addMutation.isPending || !formData.username || !formData.password || !formData.name}
                 className="flex-1"
               >
-                إضافة
+                إضافة مسؤول
               </Button>
               <Button
                 variant="outline"
                 onClick={() => {
                   setShowAddDialog(false)
-                  setFormData({ username: '', password: '', fullName: '' })
+                  setFormData({ username: '', password: '', name: '', email: '' })
                 }}
                 className="flex-1"
               >
