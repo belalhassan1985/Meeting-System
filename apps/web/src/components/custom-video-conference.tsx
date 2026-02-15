@@ -268,9 +268,19 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
     setPinnedParticipantId(prev => prev === participantId ? null : participantId)
   }
 
-  const pinnedTrack = tracks.find(t => t.participant.identity === pinnedParticipantId)
-  const otherTracks = pinnedTrack 
-    ? tracks.filter(t => t.participant.identity !== pinnedParticipantId)
+  // Find screen share track - it should be the main view
+  const screenShareTrack = tracks.find(t => t.publication?.source === Track.Source.ScreenShare)
+  
+  // If there's a screen share, show it as main. Otherwise, show pinned track
+  const mainTrack = screenShareTrack || tracks.find(t => t.participant.identity === pinnedParticipantId)
+  
+  // Other tracks are all tracks except the main one
+  const otherTracks = mainTrack 
+    ? tracks.filter(t => {
+        const trackId = t.publication?.trackSid || t.participant.identity
+        const mainId = mainTrack.publication?.trackSid || mainTrack.participant.identity
+        return trackId !== mainId
+      })
     : []
 
   const renderVideoTile = (trackRef: any, isLarge = false) => {
@@ -278,6 +288,7 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
     const isLocal = participant instanceof LocalParticipant
     const hasRaisedHand = raisedHands.has(participant.identity)
     const isPinned = participant.identity === pinnedParticipantId
+    const isScreenShare = trackRef.publication?.source === Track.Source.ScreenShare
     const deviceState = participantStates[participant.identity] || { micEnabled: false, cameraEnabled: false }
 
     return (
@@ -291,7 +302,18 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
           <ParticipantTile />
         </TrackRefContext.Provider>
         
-        {/* Device status indicators - top right */}
+        {/* Screen share indicator */}
+        {isScreenShare && (
+          <div className="absolute top-2 left-1/2 transform -translate-x-1/2 bg-blue-600 text-white px-4 py-2 rounded-lg shadow-lg z-20">
+            <div className="flex items-center gap-2">
+              <Video className="w-5 h-5" />
+              <span className="font-semibold">مشاركة الشاشة - {participant.name || participant.identity}</span>
+            </div>
+          </div>
+        )}
+
+        {/* Device status indicators - top right (not for screen share) */}
+        {!isScreenShare && (
         <div className="absolute top-2 right-2 flex gap-1 z-20">
           {/* Hand raised indicator */}
           {hasRaisedHand && (
@@ -362,15 +384,18 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
             </div>
           )}
         </div>
+        )}
 
-        {/* Pin button */}
-        <button
-          onClick={() => togglePin(participant.identity)}
-          className="absolute top-2 left-2 bg-blue-600 hover:bg-blue-700 text-white p-2 rounded-full transition shadow-lg z-20"
-          title={isPinned ? 'إلغاء التثبيت' : 'تثبيت'}
-        >
-          {isPinned ? <PinOff className="w-4 h-4" /> : <Pin className="w-4 h-4" />}
-        </button>
+        {/* Pin button (not for screen share) */}
+        {!isScreenShare && (
+          <button
+            onClick={() => togglePin(participant.identity)}
+            className="absolute top-2 left-2 bg-blue-600 hover:bg-blue-700 text-white p-2 rounded-full transition shadow-lg z-20"
+            title={isPinned ? 'إلغاء التثبيت' : 'تثبيت'}
+          >
+            {isPinned ? <PinOff className="w-4 h-4" /> : <Pin className="w-4 h-4" />}
+          </button>
+        )}
 
         {/* Participant name */}
         <div className="absolute bottom-2 left-2 bg-black bg-opacity-50 text-white px-3 py-1 rounded text-sm z-10">
@@ -476,12 +501,12 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
           </div>
         )}
 
-        {pinnedTrack ? (
-          // Pinned layout: large video + sidebar
+        {mainTrack ? (
+          // Main view layout: large video (screen share or pinned) + sidebar
           <>
             {/* Main large video */}
             <div className="flex-1">
-              {renderVideoTile(pinnedTrack, true)}
+              {renderVideoTile(mainTrack, true)}
             </div>
             
             {/* Sidebar with other participants */}
