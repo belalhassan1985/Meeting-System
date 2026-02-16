@@ -1,5 +1,5 @@
 export enum UserRole {
-  ADMIN = 'ADMIN',
+  ADMIN = 'admin',
   HOST = 'HOST',
   COHOST = 'COHOST',
   PARTICIPANT = 'PARTICIPANT',
