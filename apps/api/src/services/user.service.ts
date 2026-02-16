@@ -1,7 +1,7 @@
 import { Injectable, UnauthorizedException, ConflictException, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { UserEntity } from '../entities/user.entity';
+import { UserEntity, UserRole } from '../entities/user.entity';
 import * as bcrypt from 'bcrypt';
 import * as jwt from 'jsonwebtoken';
 
@@ -206,16 +206,16 @@ export class UserService {
     // Update admin user
     const admin = await this.userRepository.findOne({ where: { username: 'admin' } });
     if (admin) {
-      admin.role = 'admin' as any;
+      admin.role = UserRole.ADMIN;
       await this.userRepository.save(admin);
     }
 
-    // Update all other users to 'user'
+    // Update all other users to 'USER'
     const allUsers = await this.userRepository.find();
     
     for (const user of allUsers) {
-      if (user.username !== 'admin' && user.role !== 'user') {
-        user.role = 'user' as any;
+      if (user.username !== 'admin' && user.role !== UserRole.USER) {
+        user.role = UserRole.USER;
         await this.userRepository.save(user);
       }
     }
