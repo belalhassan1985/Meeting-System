@@ -261,7 +261,7 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
 
   const gridLayout = getGridLayout()
 
-  const renderVideoTile = (trackRef: any, isLarge = false) => {
+  const renderVideoTile = (trackRef: any, isLarge = false, isSidebar = false) => {
     const participant = trackRef.participant
     const isLocal = participant instanceof LocalParticipant
     const hasRaisedHand = raisedHands.has(participant.identity)
@@ -275,9 +275,17 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
         className={`relative bg-gray-800 rounded-md overflow-hidden group ${
           isLarge 
             ? 'w-full h-full' 
+            : isSidebar
+            ? 'w-full flex-shrink-0'
             : 'w-full h-full flex items-center justify-center'
         }`}
-        style={!isLarge ? { aspectRatio: '16/9' } : {}}
+        style={
+          isLarge 
+            ? {} 
+            : isSidebar 
+            ? { aspectRatio: '16/9', minHeight: '140px' }
+            : { aspectRatio: '16/9' }
+        }
       >
         <div className="absolute inset-0">
           <TrackRefContext.Provider value={trackRef}>
@@ -440,10 +448,10 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
 
         {mainTrack ? (
           <div className="flex-1 flex gap-3 p-3">
-            <div className="flex-1">{renderVideoTile(mainTrack, true)}</div>
+            <div className="flex-1">{renderVideoTile(mainTrack, true, false)}</div>
             {otherTracks.length > 0 && (
-              <div className="w-64 flex flex-col gap-2 overflow-y-auto pr-1">
-                {otherTracks.map(trackRef => renderVideoTile(trackRef, false))}
+              <div className="w-80 flex flex-col gap-3 overflow-y-auto overflow-x-hidden pr-2 pb-2">
+                {otherTracks.map(trackRef => renderVideoTile(trackRef, false, true))}
               </div>
             )}
           </div>
