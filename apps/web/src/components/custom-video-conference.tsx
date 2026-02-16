@@ -39,7 +39,7 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
     { onlySubscribed: false }
   )
 
-  const isAdmin = userRole === UserRole.HOST || userRole === UserRole.COHOST
+  const isAdmin = userRole === UserRole.ADMIN || userRole === UserRole.HOST || userRole === UserRole.COHOST
 
   // Auto-enable compact mode for many participants
   useEffect(() => {

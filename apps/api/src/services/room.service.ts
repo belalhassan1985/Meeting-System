@@ -137,12 +137,20 @@ export class RoomService {
       role = participant.role;
       this.logger.log(`🔄 Existing participant found: ${user.name}, role: ${role}`);
     } else {
-      role = user.id === room.hostId ? UserRole.HOST : UserRole.PARTICIPANT;
+      // Check if user has ADMIN role in UserEntity
+      if (user.role === 'ADMIN') {
+        role = UserRole.ADMIN;
+      } else if (user.id === room.hostId) {
+        role = UserRole.HOST;
+      } else {
+        role = UserRole.PARTICIPANT;
+      }
       
       // Debug logging
       this.logger.log(`🔍 Role Assignment Debug:`, {
         userName: user.name,
         userId: user.id,
+        userEntityRole: user.role,
         roomHostId: room.hostId,
         isHost: user.id === room.hostId,
         assignedRole: role,
