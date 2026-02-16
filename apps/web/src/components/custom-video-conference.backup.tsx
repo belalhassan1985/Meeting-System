@@ -11,7 +11,7 @@ import {
   useRoomContext,
 } from '@livekit/components-react'
 import { Track, RemoteParticipant, LocalParticipant } from 'livekit-client'
-import { Mic, MicOff, Video, VideoOff, Hand, Pin, PinOff, Users, UserX, LogOut, Grid3x3, LayoutGrid } from 'lucide-react'
+import { Mic, MicOff, Video, VideoOff, Hand, Pin, PinOff, Users, UserX, LogOut } from 'lucide-react'
 import { UserRole } from '@arabic-meet/shared'
 import { useRouter } from 'next/navigation'
 
@@ -28,7 +28,6 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
   const [pinnedParticipantId, setPinnedParticipantId] = useState<string | null>(null)
   const [showParticipants, setShowParticipants] = useState(false)
   const [participantStates, setParticipantStates] = useState<Record<string, { micEnabled: boolean; cameraEnabled: boolean }>>({})
-  const [compactMode, setCompactMode] = useState(false)
   const router = useRouter()
 
   const tracks = useTracks(
@@ -40,13 +39,6 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
   )
 
   const isAdmin = userRole === UserRole.HOST || userRole === UserRole.COHOST
-
-  // Auto-enable compact mode for many participants
-  useEffect(() => {
-    if (tracks.length > 12 && !compactMode) {
-      setCompactMode(true)
-    }
-  }, [tracks.length])
 
   // Debug logging
   useEffect(() => {
@@ -83,11 +75,13 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
 
     // Listen for track muted/unmuted events
     const handleTrackMuted = () => {
+      // Update all participants when any track is muted
       updateParticipantState(localParticipant)
       participants.forEach(updateParticipantState)
     }
 
     const handleTrackUnmuted = () => {
+      // Update all participants when any track is unmuted
       updateParticipantState(localParticipant)
       participants.forEach(updateParticipantState)
     }
@@ -124,6 +118,7 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
     const newState = !handRaised
     setHandRaised(newState)
     
+    // Send hand raise state via data channel
     const encoder = new TextEncoder()
     const data = encoder.encode(JSON.stringify({
       type: 'hand-raise',
@@ -175,6 +170,7 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
     }))
     await localParticipant.publishData(data, { reliable: true })
     
+    // Update state immediately for instant feedback
     setTimeout(() => {
       const micTrack = participant.getTrackPublication(Track.Source.Microphone)
       const cameraTrack = participant.getTrackPublication(Track.Source.Camera)
@@ -199,6 +195,7 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
     }))
     await localParticipant.publishData(data, { reliable: true })
     
+    // Update state immediately for instant feedback
     setTimeout(() => {
       const micTrack = participant.getTrackPublication(Track.Source.Microphone)
       const cameraTrack = participant.getTrackPublication(Track.Source.Camera)
@@ -265,11 +262,13 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
       } else if (data.type === 'admin-disable-camera') {
         await localParticipant.setCameraEnabled(false)
       } else if (data.type === 'admin-stop-screenshare') {
+        // Admin stopped screen share - stop sharing
         const screenShareTrack = localParticipant.getTrackPublication(Track.Source.ScreenShare)
         if (screenShareTrack) {
           await localParticipant.unpublishTrack(screenShareTrack.track!)
         }
       } else if (data.type === 'admin-kick') {
+        // Participant is being kicked - disconnect and redirect
         await room?.disconnect()
         alert('تم طردك من الغرفة من قبل المسؤول')
         router.push('/')
@@ -291,6 +290,7 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
   const screenShareTrack = tracks.find(t => t.publication?.source === Track.Source.ScreenShare)
   
   // Priority: Pinned track (if set) > Screen share > Nothing
+  // This allows admin to override screen share by pinning someone
   const pinnedTrack = tracks.find(t => t.participant.identity === pinnedParticipantId)
   const mainTrack = pinnedTrack || screenShareTrack
   
@@ -303,17 +303,6 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
       })
     : []
 
-  // Calculate grid columns based on participant count
-  const getGridColumns = () => {
-    const count = tracks.length
-    if (count <= 1) return 'grid-cols-1'
-    if (count <= 4) return 'grid-cols-1 md:grid-cols-2'
-    if (count <= 9) return 'grid-cols-2 md:grid-cols-3'
-    if (count <= 16) return 'grid-cols-3 md:grid-cols-4'
-    if (count <= 25) return 'grid-cols-4 md:grid-cols-5'
-    return 'grid-cols-5 md:grid-cols-6 lg:grid-cols-7'
-  }
-
   const renderVideoTile = (trackRef: any, isLarge = false) => {
     const participant = trackRef.participant
     const isLocal = participant instanceof LocalParticipant
@@ -325,8 +314,8 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
     return (
       <div 
         key={trackRef.publication?.trackSid || participant.identity} 
-        className={`relative bg-gray-800 rounded-lg overflow-hidden group ${
-          isLarge ? 'w-full h-full' : compactMode ? 'aspect-video min-h-[80px]' : 'aspect-video min-h-[120px]'
+        className={`relative bg-gray-800 rounded-lg overflow-hidden ${
+          isLarge ? 'w-full h-full' : 'aspect-video'
         }`}
       >
         <TrackRefContext.Provider value={trackRef}>
@@ -340,6 +329,7 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
               <Video className="w-5 h-5" />
               <span className="font-semibold">مشاركة الشاشة - {participant.name || participant.identity}</span>
             </div>
+            {/* Admin: Stop screen share button */}
             {isAdmin && !isLocal && (
               <button
                 onClick={() => {
@@ -358,16 +348,17 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
           </div>
         )}
 
-        {/* Device status indicators - show on hover in normal mode */}
-        {!isScreenShare && !compactMode && (
-        <div className="absolute top-2 right-2 flex gap-1 z-20 opacity-0 group-hover:opacity-100 transition-opacity">
+        {/* Device status indicators - top right (not for screen share) */}
+        {!isScreenShare && (
+        <div className="absolute top-2 right-2 flex gap-1 z-20">
+          {/* Hand raised indicator */}
           {hasRaisedHand && (
             <div className="bg-yellow-500 text-white p-2 rounded-full">
               <Hand className="w-5 h-5" />
             </div>
           )}
           
-          {/* Mic status */}
+          {/* Mic status - clickable for admin on remote participants */}
           {isAdmin && !isLocal ? (
             <button
               onClick={() => {
@@ -398,7 +389,7 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
             </div>
           )}
           
-          {/* Camera status */}
+          {/* Camera status - clickable for admin on remote participants */}
           {isAdmin && !isLocal ? (
             <button
               onClick={() => {
@@ -431,32 +422,11 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
         </div>
         )}
 
-        {/* Compact mode indicators - always visible, minimal */}
-        {compactMode && !isScreenShare && (
-          <div className="absolute top-1 right-1 flex gap-0.5 z-20">
-            {hasRaisedHand && (
-              <div className="bg-yellow-500 p-1 rounded">
-                <Hand className="w-3 h-3 text-white" />
-              </div>
-            )}
-            {!deviceState.micEnabled && (
-              <div className="bg-red-600 p-1 rounded">
-                <MicOff className="w-3 h-3 text-white" />
-              </div>
-            )}
-            {!deviceState.cameraEnabled && (
-              <div className="bg-red-600 p-1 rounded">
-                <VideoOff className="w-3 h-3 text-white" />
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Pin button - show on hover */}
-        {!isScreenShare && !compactMode && (
+        {/* Pin button (not for screen share) */}
+        {!isScreenShare && (
           <button
             onClick={() => togglePin(participant.identity)}
-            className="absolute top-2 left-2 bg-blue-600 hover:bg-blue-700 text-white p-2 rounded-full transition shadow-lg z-20 opacity-0 group-hover:opacity-100"
+            className="absolute top-2 left-2 bg-blue-600 hover:bg-blue-700 text-white p-2 rounded-full transition shadow-lg z-20"
             title={isPinned ? 'إلغاء التثبيت' : 'تثبيت'}
           >
             {isPinned ? <PinOff className="w-4 h-4" /> : <Pin className="w-4 h-4" />}
@@ -464,9 +434,7 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
         )}
 
         {/* Participant name */}
-        <div className={`absolute bottom-1 left-1 bg-black bg-opacity-70 text-white rounded z-10 ${
-          compactMode ? 'px-2 py-0.5 text-xs max-w-[80%] truncate' : 'px-3 py-1 text-sm'
-        }`}>
+        <div className="absolute bottom-2 left-2 bg-black bg-opacity-50 text-white px-3 py-1 rounded text-sm z-10">
           {participant.name || participant.identity}
         </div>
       </div>
@@ -534,6 +502,7 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
                           </span>
                         </div>
                         <div className="flex items-center gap-2">
+                          {/* Device status indicators */}
                           <div className="flex items-center gap-1">
                             {deviceState.micEnabled ? (
                               <Mic className="w-4 h-4 text-green-500" />
@@ -546,6 +515,7 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
                               <VideoOff className="w-4 h-4 text-red-500" />
                             )}
                           </div>
+                          {/* Kick button */}
                           <button
                             onClick={() => {
                               if (confirm(`هل تريد طرد ${participant.name || participant.identity} من الغرفة؟`)) {
@@ -570,10 +540,12 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
         {mainTrack ? (
           // Main view layout: large video (screen share or pinned) + sidebar
           <>
+            {/* Main large video */}
             <div className="flex-1">
               {renderVideoTile(mainTrack, true)}
             </div>
             
+            {/* Sidebar with other participants */}
             {otherTracks.length > 0 && (
               <div className="w-64 flex flex-col gap-2 overflow-y-auto">
                 {otherTracks.map(trackRef => renderVideoTile(trackRef, false))}
@@ -581,8 +553,8 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
             )}
           </>
         ) : (
-          // Grid layout - responsive and scrollable
-          <div className={`w-full h-full grid ${getGridColumns()} gap-2 overflow-y-auto overflow-x-hidden p-2`}>
+          // Grid layout when no pin
+          <div className="w-full h-full grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 overflow-auto">
             {tracks.map(trackRef => renderVideoTile(trackRef, false))}
           </div>
         )}
@@ -604,6 +576,7 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
           <div className="flex items-center gap-4">
             <ControlBar />
             
+            {/* Hand Raise Button for non-admins */}
             {!isAdmin && (
               <button
                 onClick={toggleHandRaise}
@@ -619,39 +592,20 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
             )}
           </div>
           
-          {/* Right side - Controls */}
-          <div className="flex items-center gap-2">
-            {/* Compact mode toggle */}
-            {tracks.length > 9 && (
-              <button
-                onClick={() => setCompactMode(!compactMode)}
-                className={`flex items-center gap-2 px-3 py-2 rounded-lg transition text-sm ${
-                  compactMode
-                    ? 'bg-green-600 hover:bg-green-700 text-white'
-                    : 'bg-gray-700 hover:bg-gray-600 text-white'
-                }`}
-                title={compactMode ? 'وضع عادي' : 'وضع مضغوط'}
-              >
-                {compactMode ? <Grid3x3 className="w-4 h-4" /> : <LayoutGrid className="w-4 h-4" />}
-                <span className="hidden md:inline">{compactMode ? 'عادي' : 'مضغوط'}</span>
-              </button>
-            )}
-            
-            {/* Participants button (admin only) */}
-            {isAdmin && (
-              <button
-                onClick={() => setShowParticipants(!showParticipants)}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg transition ${
-                  showParticipants
-                    ? 'bg-blue-600 hover:bg-blue-700 text-white'
-                    : 'bg-gray-700 hover:bg-gray-600 text-white'
-                }`}
-              >
-                <Users className="w-5 h-5" />
-                <span>المشاركون ({participants.length + 1})</span>
-              </button>
-            )}
-          </div>
+          {/* Right side - Participants button (admin only) */}
+          {isAdmin && (
+            <button
+              onClick={() => setShowParticipants(!showParticipants)}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg transition ${
+                showParticipants
+                  ? 'bg-blue-600 hover:bg-blue-700 text-white'
+                  : 'bg-gray-700 hover:bg-gray-600 text-white'
+              }`}
+            >
+              <Users className="w-5 h-5" />
+              <span>المشاركون ({participants.length + 1})</span>
+            </button>
+          )}
         </div>
       </div>
     </div>
