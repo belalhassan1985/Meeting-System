@@ -1,20 +1,10 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { Logger, ValidationPipe } from '@nestjs/common';
-import { UserService } from './services/user.service';
 
 async function bootstrap() {
   const logger = new Logger('Bootstrap');
   const app = await NestFactory.create(AppModule);
-
-  // Run automatic role migration on startup
-  try {
-    const userService = app.get(UserService);
-    await userService.fixRoles();
-    logger.log('✅ Role migration completed successfully');
-  } catch (error) {
-    logger.warn('⚠️ Role migration failed (this is normal on first run):', error.message);
-  }
 
   const corsOrigins = process.env.CORS_ORIGIN 
     ? process.env.CORS_ORIGIN.split(',').map(origin => origin.trim())

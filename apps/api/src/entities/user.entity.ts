@@ -2,8 +2,8 @@ import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateCol
 import { ParticipantEntity } from './participant.entity';
 
 export enum UserRole {
-  ADMIN = 'ADMIN',
-  USER = 'USER',
+  ADMIN = 'admin',
+  USER = 'user',
 }
 
 @Entity('users')
