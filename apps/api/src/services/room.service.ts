@@ -137,10 +137,9 @@ export class RoomService {
       role = participant.role;
       this.logger.log(`🔄 Existing participant found: ${user.name}, role: ${role}`);
     } else {
-      // Check if user has ADMIN role in UserEntity
-      if (user.role === 'admin') {
-        role = UserRole.ADMIN;
-      } else if (user.id === room.hostId) {
+      // Check if user has ADMIN role in UserEntity or is the host
+      // Admin users get HOST role in participants table for permissions
+      if (user.role === 'admin' || user.id === room.hostId) {
         role = UserRole.HOST;
       } else {
         role = UserRole.PARTICIPANT;
