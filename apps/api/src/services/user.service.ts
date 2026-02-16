@@ -203,42 +203,49 @@ export class UserService {
   }
 
   async fixRoles() {
-    // Update all users: migrate lowercase to uppercase
-    const allUsers = await this.userRepository.find();
-    
-    for (const user of allUsers) {
-      let needsUpdate = false;
+    try {
+      // Update all users: migrate lowercase to uppercase
+      const allUsers = await this.userRepository.find();
+      let updatedCount = 0;
       
-      // Convert 'admin' to 'ADMIN'
-      if (user.role === 'admin' as any) {
-        user.role = UserRole.ADMIN;
-        needsUpdate = true;
+      for (const user of allUsers) {
+        const currentRole = String(user.role).toLowerCase();
+        let newRole: any = null;
+        
+        // Convert 'admin' to 'ADMIN'
+        if (currentRole === 'admin') {
+          newRole = 'ADMIN';
+        }
+        // Convert 'user' to 'USER'
+        else if (currentRole === 'user') {
+          newRole = 'USER';
+        }
+        
+        if (newRole) {
+          await this.userRepository.update(user.id, { role: newRole });
+          updatedCount++;
+        }
       }
-      // Convert 'user' to 'USER'
-      else if (user.role === 'user' as any) {
-        user.role = UserRole.USER;
-        needsUpdate = true;
-      }
-      
-      if (needsUpdate) {
-        await this.userRepository.save(user);
-      }
+
+      // Return updated users
+      const users = await this.userRepository.find({
+        select: ['id', 'username', 'name', 'role'],
+        order: { createdAt: 'DESC' },
+      });
+
+      return {
+        message: `تم تحديث ${updatedCount} من الأدوار بنجاح`,
+        updatedCount,
+        users: users.map(u => ({
+          name: u.name,
+          username: u.username,
+          role: u.role,
+        })),
+      };
+    } catch (error) {
+      console.error('Error in fixRoles:', error);
+      throw error;
     }
-
-    // Return updated users
-    const users = await this.userRepository.find({
-      select: ['id', 'username', 'name', 'role'],
-      order: { createdAt: 'DESC' },
-    });
-
-    return {
-      message: 'تم تحديث الأدوار بنجاح',
-      users: users.map(u => ({
-        name: u.name,
-        username: u.username,
-        role: u.role,
-      })),
-    };
   }
 
   async fixNullUsernames() {
