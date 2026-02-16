@@ -262,7 +262,7 @@ export class AdminService {
   // Admin user management (UserEntity with ADMIN role)
   async getAdminUsers() {
     const adminUsers = await this.userRepository.find({
-      where: { role: UserRole.ADMIN },
+      where: { role: 'ADMIN' as any },
       select: ['id', 'name', 'username', 'email', 'role', 'isActive', 'createdAt'],
       order: { createdAt: 'DESC' },
     });
@@ -285,7 +285,7 @@ export class AdminService {
       password: hashedPassword,
       name: data.name,
       email: data.email,
-      role: UserRole.ADMIN,
+      role: 'ADMIN' as any,
       isActive: true,
     });
 
@@ -301,7 +301,7 @@ export class AdminService {
   }
 
   async updateAdminUser(id: string, data: Partial<UserEntity>) {
-    const user = await this.userRepository.findOne({ where: { id, role: UserRole.ADMIN } });
+    const user = await this.userRepository.findOne({ where: { id, role: 'ADMIN' as any } });
     
     if (!user) {
       throw new NotFoundException('Admin user not found');
@@ -320,7 +320,7 @@ export class AdminService {
   }
 
   async deleteAdminUser(id: string) {
-    const user = await this.userRepository.findOne({ where: { id, role: UserRole.ADMIN } });
+    const user = await this.userRepository.findOne({ where: { id, role: 'ADMIN' as any } });
     
     if (!user) {
       throw new NotFoundException('Admin user not found');

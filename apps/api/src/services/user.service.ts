@@ -203,19 +203,24 @@ export class UserService {
   }
 
   async fixRoles() {
-    // Update admin user
-    const admin = await this.userRepository.findOne({ where: { username: 'admin' } });
-    if (admin) {
-      admin.role = UserRole.ADMIN;
-      await this.userRepository.save(admin);
-    }
-
-    // Update all other users to 'USER'
+    // Update all users: migrate lowercase to uppercase
     const allUsers = await this.userRepository.find();
     
     for (const user of allUsers) {
-      if (user.username !== 'admin' && user.role !== UserRole.USER) {
+      let needsUpdate = false;
+      
+      // Convert 'admin' to 'ADMIN'
+      if (user.role === 'admin' as any) {
+        user.role = UserRole.ADMIN;
+        needsUpdate = true;
+      }
+      // Convert 'user' to 'USER'
+      else if (user.role === 'user' as any) {
         user.role = UserRole.USER;
+        needsUpdate = true;
+      }
+      
+      if (needsUpdate) {
         await this.userRepository.save(user);
       }
     }
