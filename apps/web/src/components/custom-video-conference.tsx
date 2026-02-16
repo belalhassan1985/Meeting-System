@@ -141,7 +141,9 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
     }
 
     room.on('dataReceived', handleDataReceived)
-    return () => room.off('dataReceived', handleDataReceived)
+    return () => {
+      room.off('dataReceived', handleDataReceived)
+    }
   }, [room])
 
   // Admin controls
@@ -219,7 +221,9 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
     }
 
     room.on('dataReceived', handleDataReceived)
-    return () => room.off('dataReceived', handleDataReceived)
+    return () => {
+      room.off('dataReceived', handleDataReceived)
+    }
   }, [room, localParticipant, isAdmin])
 
   const togglePin = (participantId: string) => {
