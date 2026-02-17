@@ -11,9 +11,13 @@ import {
   useRoomContext,
 } from '@livekit/components-react'
 import { Track, RemoteParticipant, LocalParticipant } from 'livekit-client'
-import { Mic, MicOff, Video, VideoOff, Hand, Pin, PinOff, Users, UserX, LogOut, Grid3x3, LayoutGrid } from 'lucide-react'
+import { Mic, MicOff, Video, VideoOff, Hand, Pin, PinOff, Users, UserX, LogOut, Grid3x3, LayoutGrid, MessageCircle } from 'lucide-react'
 import { UserRole } from '@arabic-meet/shared'
 import { useRouter } from 'next/navigation'
+import { ChatPanel } from './chat-panel'
+import { useRoomStore } from '@/store/room-store'
+import { getSocket } from '@/lib/socket'
+import type { ChatMessage } from '@arabic-meet/shared'
 
 interface CustomVideoConferenceProps {
   userRole: UserRole
@@ -27,9 +31,12 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
   const [raisedHands, setRaisedHands] = useState<Set<string>>(new Set())
   const [pinnedParticipantId, setPinnedParticipantId] = useState<string | null>(null)
   const [showParticipants, setShowParticipants] = useState(false)
+  const [showChat, setShowChat] = useState(false)
+  const [unreadMessages, setUnreadMessages] = useState(0)
   const [participantStates, setParticipantStates] = useState<Record<string, { micEnabled: boolean; cameraEnabled: boolean }>>({})
   const [compactMode, setCompactMode] = useState(false)
   const router = useRouter()
+  const { addChatMessage, roomId, userId, userName } = useRoomStore()
 
   const tracks = useTracks(
     [
@@ -47,6 +54,36 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
       setCompactMode(true)
     }
   }, [tracks.length])
+
+  // WebSocket chat integration
+  useEffect(() => {
+    const socket = getSocket()
+    
+    const handleChatMessage = (message: ChatMessage) => {
+      addChatMessage(message)
+      if (!showChat) {
+        setUnreadMessages(prev => prev + 1)
+      }
+    }
+
+    socket.on('room:chat', handleChatMessage)
+
+    return () => {
+      socket.off('room:chat', handleChatMessage)
+    }
+  }, [addChatMessage, showChat])
+
+  // Reset unread count when chat is opened
+  useEffect(() => {
+    if (showChat) {
+      setUnreadMessages(0)
+    }
+  }, [showChat])
+
+  const handleSendMessage = (message: string) => {
+    const socket = getSocket()
+    socket.emit('room:chat', { message })
+  }
 
   // Track participant device states
   useEffect(() => {
@@ -387,6 +424,21 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
     <div className="flex flex-col h-screen w-screen bg-gray-950">
       {/* Video Layout */}
       <div className="flex-1 flex overflow-hidden relative">
+        {/* Chat Sidebar */}
+        {showChat && (
+          <div className="absolute top-0 left-0 h-full w-96 bg-gray-900/95 backdrop-blur border-r border-gray-700 z-30 shadow-2xl">
+            <div className="h-full flex flex-col">
+              <div className="flex items-center justify-between p-4 border-b border-gray-700">
+                <h3 className="text-white font-semibold">الدردشة</h3>
+                <button onClick={() => setShowChat(false)} className="text-gray-400 hover:text-white text-xl">✕</button>
+              </div>
+              <div className="flex-1 overflow-hidden">
+                <ChatPanel onSendMessage={handleSendMessage} />
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Participants Sidebar */}
         {isAdmin && showParticipants && (
           <div className="absolute top-0 right-0 h-full w-80 bg-gray-900/95 backdrop-blur border-l border-gray-700 z-30 overflow-y-auto shadow-2xl">
@@ -492,6 +544,22 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
           </div>
           
           <div className="flex items-center gap-2">
+            {/* Chat Button */}
+            <button
+              onClick={() => setShowChat(!showChat)}
+              className={`relative flex items-center gap-2 px-4 py-2.5 rounded-lg transition font-medium ${
+                showChat ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-gray-700 hover:bg-gray-600 text-white'
+              }`}
+            >
+              <MessageCircle className="w-5 h-5" />
+              <span>الدردشة</span>
+              {unreadMessages > 0 && (
+                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                  {unreadMessages > 9 ? '9+' : unreadMessages}
+                </span>
+              )}
+            </button>
+
             {tracks.length > 9 && (
               <button
                 onClick={() => setCompactMode(!compactMode)}

@@ -14,3 +14,11 @@ button[aria-label*="Leave"],
 .custom-leave-button {
   display: flex !important;
 }
+
+/* Hide duplicate participant name from LiveKit ParticipantTile */
+.lk-participant-tile .lk-participant-metadata,
+.lk-participant-tile .lk-participant-name,
+.lk-participant-metadata,
+.lk-participant-name {
+  display: none !important;
+}
