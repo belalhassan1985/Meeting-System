@@ -11,12 +11,13 @@ export default function TestLoginPage() {
     setResult(null)
 
     const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
+    const API_BASE = `${API_URL}/api`
     
     try {
       console.log('Testing login with:', { username: 'testuser', password: '123456' })
       console.log('API URL:', API_URL)
 
-      const response = await fetch(`${API_URL}/users/login`, {
+      const response = await fetch(`${API_BASE}/users/login`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',

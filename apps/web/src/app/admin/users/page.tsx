@@ -8,15 +8,17 @@ import { Trash2, ArrowLeft, Eye } from 'lucide-react'
 import Link from 'next/link'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
+const API_BASE = `${API_URL}/api`
 
 export default function UsersManagement() {
   const [page, setPage] = useState(1)
+  const limit = 20
   const queryClient = useQueryClient()
 
   const { data, isLoading } = useQuery({
     queryKey: ['admin-users', page],
     queryFn: async () => {
-      const res = await fetch(`${API_URL}/admin/users?page=${page}&limit=10`)
+      const res = await fetch(`${API_BASE}/admin/users?page=${page}&limit=${limit}`)
       if (!res.ok) throw new Error('Failed to fetch users')
       return res.json()
     },
@@ -24,7 +26,7 @@ export default function UsersManagement() {
 
   const deleteMutation = useMutation({
     mutationFn: async (userId: string) => {
-      const res = await fetch(`${API_URL}/admin/users/${userId}`, {
+      const res = await fetch(`${API_BASE}/admin/users/${userId}`, {
         method: 'DELETE',
       })
       if (!res.ok) throw new Error('Failed to delete user')

@@ -11,6 +11,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
+const API_BASE = `${API_URL}/api`
 
 export default function RoomsManagement() {
   const [page, setPage] = useState(1)
@@ -27,7 +28,7 @@ export default function RoomsManagement() {
   const { data, isLoading } = useQuery({
     queryKey: ['admin-rooms', page],
     queryFn: async () => {
-      const res = await fetch(`${API_URL}/admin/rooms?page=${page}&limit=10`)
+      const res = await fetch(`${API_BASE}/admin/rooms?page=${page}&limit=10`)
       if (!res.ok) throw new Error('Failed to fetch rooms')
       return res.json()
     },
@@ -43,7 +44,7 @@ export default function RoomsManagement() {
 
       const admin = JSON.parse(adminInfo)
       
-      const res = await fetch(`${API_URL}/rooms/${roomId}/join`, {
+      const res = await fetch(`${API_BASE}/rooms/${roomId}/join`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -65,7 +66,7 @@ export default function RoomsManagement() {
 
   const deleteMutation = useMutation({
     mutationFn: async (roomId: string) => {
-      const res = await fetch(`${API_URL}/admin/rooms/${roomId}`, {
+      const res = await fetch(`${API_BASE}/admin/rooms/${roomId}`, {
         method: 'DELETE',
       })
       if (!res.ok) throw new Error('Failed to delete room')
@@ -77,7 +78,7 @@ export default function RoomsManagement() {
 
   const closeMutation = useMutation({
     mutationFn: async (roomId: string) => {
-      const res = await fetch(`${API_URL}/admin/rooms/${roomId}/close`, {
+      const res = await fetch(`${API_BASE}/admin/rooms/${roomId}/close`, {
         method: 'PATCH',
       })
       if (!res.ok) throw new Error('Failed to close room')
@@ -90,7 +91,7 @@ export default function RoomsManagement() {
 
   const reopenMutation = useMutation({
     mutationFn: async (roomId: string) => {
-      const res = await fetch(`${API_URL}/admin/rooms/${roomId}/reopen`, {
+      const res = await fetch(`${API_BASE}/admin/rooms/${roomId}/reopen`, {
         method: 'PATCH',
       })
       if (!res.ok) throw new Error('Failed to reopen room')
@@ -106,7 +107,7 @@ export default function RoomsManagement() {
       const adminInfo = localStorage.getItem('userInfo')
       const admin = adminInfo ? JSON.parse(adminInfo) : null
       
-      const res = await fetch(`${API_URL}/rooms`, {
+      const res = await fetch(`${API_BASE}/rooms`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

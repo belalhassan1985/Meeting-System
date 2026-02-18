@@ -13,7 +13,8 @@ import {
   Menu,
   X,
   UserCog,
-  Home
+  Home,
+  Film
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
@@ -21,6 +22,7 @@ const menuItems = [
   { href: '/admin', icon: LayoutDashboard, label: 'لوحة التحكم' },
   { href: '/admin/users-management', icon: Users, label: 'إدارة المستخدمين' },
   { href: '/admin/rooms', icon: Video, label: 'الغرف' },
+  { href: '/admin/recordings', icon: Film, label: 'التسجيلات' },
   { href: '/admin/audit-logs', icon: FileText, label: 'سجلات الأحداث' },
   { href: '/admin/admins', icon: UserCog, label: 'المسؤولين' },
 ]

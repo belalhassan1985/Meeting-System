@@ -9,6 +9,7 @@ import { Trash2, Plus, Edit2, X, Check } from 'lucide-react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
+const API_BASE = `${API_URL}/api`
 
 export default function AdminsManagement() {
   const [showAddDialog, setShowAddDialog] = useState(false)
@@ -20,7 +21,7 @@ export default function AdminsManagement() {
     queryKey: ['admin-users'],
     queryFn: async () => {
       const token = localStorage.getItem('adminToken')
-      const res = await fetch(`${API_URL}/admin/admin-users`, {
+      const res = await fetch(`${API_BASE}/admin/admin-users`, {
         headers: { Authorization: `Bearer ${token}` },
       })
       if (!res.ok) throw new Error('Failed to fetch admin users')
@@ -31,7 +32,7 @@ export default function AdminsManagement() {
   const addMutation = useMutation({
     mutationFn: async (data: typeof formData) => {
       const token = localStorage.getItem('adminToken')
-      const res = await fetch(`${API_URL}/admin/admin-users`, {
+      const res = await fetch(`${API_BASE}/admin/admin-users`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
@@ -52,7 +53,7 @@ export default function AdminsManagement() {
   const updateMutation = useMutation({
     mutationFn: async ({ id, data }: { id: string; data: any }) => {
       const token = localStorage.getItem('adminToken')
-      const res = await fetch(`${API_URL}/admin/admin-users/${id}`, {
+      const res = await fetch(`${API_BASE}/admin/admin-users/${id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -73,7 +74,7 @@ export default function AdminsManagement() {
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
       const token = localStorage.getItem('adminToken')
-      const res = await fetch(`${API_URL}/admin/admin-users/${id}`, {
+      const res = await fetch(`${API_BASE}/admin/admin-users/${id}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       })

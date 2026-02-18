@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Lock, User } from 'lucide-react'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
+const API_BASE = `${API_URL}/api`
 
 export default function AdminLogin() {
   const [username, setUsername] = useState('')
@@ -22,7 +23,7 @@ export default function AdminLogin() {
     setLoading(true)
 
     try {
-      const res = await fetch(`${API_URL}/auth/login`, {
+      const res = await fetch(`${API_BASE}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, password }),
@@ -33,10 +34,11 @@ export default function AdminLogin() {
       }
 
       const data = await res.json()
-      localStorage.setItem('userToken', data.token)
+      localStorage.setItem('token', data.token)
+      localStorage.setItem('admin', JSON.stringify(data.admin))
       localStorage.setItem('userInfo', JSON.stringify(data.admin))
       
-      router.push('/dashboard')
+      router.push('/admin')
     } catch (err: any) {
       setError(err.message)
     } finally {

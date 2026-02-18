@@ -10,6 +10,7 @@ import { ArrowRight, UserPlus, Trash2, Users, Loader2, Search, CheckCircle2, Ale
 import Link from 'next/link'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
+const API_BASE = `${API_URL}/api`
 
 export default function RoomMembersPage() {
   const params = useParams()
@@ -23,7 +24,7 @@ export default function RoomMembersPage() {
   const { data: room } = useQuery({
     queryKey: ['room', roomId],
     queryFn: async () => {
-      const res = await fetch(`${API_URL}/rooms/${roomId}`)
+      const res = await fetch(`${API_BASE}/rooms/${roomId}`)
       if (!res.ok) throw new Error('Failed to fetch room')
       return res.json()
     },
@@ -33,7 +34,7 @@ export default function RoomMembersPage() {
   const { data: members, isLoading: membersLoading } = useQuery({
     queryKey: ['room-members', roomId],
     queryFn: async () => {
-      const res = await fetch(`${API_URL}/room-members/${roomId}/members`)
+      const res = await fetch(`${API_BASE}/room-members/${roomId}/members`)
       if (!res.ok) throw new Error('Failed to fetch members')
       return res.json()
     },
@@ -43,7 +44,7 @@ export default function RoomMembersPage() {
   const { data: allUsers, isLoading: usersLoading } = useQuery({
     queryKey: ['users'],
     queryFn: async () => {
-      const res = await fetch(`${API_URL}/users`)
+      const res = await fetch(`${API_BASE}/users`)
       if (!res.ok) throw new Error('Failed to fetch users')
       const data = await res.json()
       return Array.isArray(data) ? data : []
@@ -53,7 +54,7 @@ export default function RoomMembersPage() {
   // Add members mutation (bulk)
   const addMembersMutation = useMutation({
     mutationFn: async (userIds: string[]) => {
-      const res = await fetch(`${API_URL}/room-members/${roomId}/members/bulk`, {
+      const res = await fetch(`${API_BASE}/room-members/${roomId}/members/bulk`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userIds }),
@@ -70,7 +71,7 @@ export default function RoomMembersPage() {
   // Remove member mutation
   const removeMemberMutation = useMutation({
     mutationFn: async (userId: string) => {
-      const res = await fetch(`${API_URL}/room-members/${roomId}/members/${userId}`, {
+      const res = await fetch(`${API_BASE}/room-members/${roomId}/members/${userId}`, {
         method: 'DELETE',
       })
       if (!res.ok) throw new Error('Failed to remove member')

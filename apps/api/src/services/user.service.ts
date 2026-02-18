@@ -204,21 +204,21 @@ export class UserService {
 
   async fixRoles() {
     try {
-      // Update all users: migrate lowercase to uppercase
+      // Update all users: convert any uppercase roles to lowercase
       const allUsers = await this.userRepository.find();
       let updatedCount = 0;
       
       for (const user of allUsers) {
-        const currentRole = String(user.role).toLowerCase();
+        const currentRole = String(user.role);
         let newRole: any = null;
         
-        // Convert 'admin' to 'ADMIN'
-        if (currentRole === 'admin') {
-          newRole = 'ADMIN';
+        // Convert 'ADMIN' to 'admin'
+        if (currentRole === 'ADMIN') {
+          newRole = 'admin';
         }
-        // Convert 'user' to 'USER'
-        else if (currentRole === 'user') {
-          newRole = 'USER';
+        // Convert 'USER' to 'user'
+        else if (currentRole === 'USER') {
+          newRole = 'user';
         }
         
         if (newRole) {

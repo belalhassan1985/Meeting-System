@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Video, User, Lock } from 'lucide-react'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
+const API_BASE = `${API_URL}/api`
 
 export default function LoginPage() {
   const [username, setUsername] = useState('')
@@ -22,7 +23,7 @@ export default function LoginPage() {
     setLoading(true)
 
     try {
-      const res = await fetch(`${API_URL}/users/login`, {
+      const res = await fetch(`${API_BASE}/users/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, password }),
@@ -36,8 +37,16 @@ export default function LoginPage() {
       localStorage.setItem('token', data.token)
       localStorage.setItem('userInfo', JSON.stringify(data.user))
       
-      // Redirect based on role
-      if (data.user.role === 'admin') {
+      // Redirect based on role (handle both uppercase and lowercase)
+      const userRole = data.user.role?.toLowerCase()
+      if (userRole === 'admin') {
+        // Save admin data for admin panel
+        localStorage.setItem('admin', JSON.stringify({
+          id: data.user.id,
+          username: data.user.username,
+          fullName: data.user.name,
+          role: data.user.role
+        }))
         router.push('/admin')
       } else {
         router.push('/dashboard')

@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { UserPlus, Edit, Trash2, Power, Search } from 'lucide-react'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
+const API_BASE = `${API_URL}/api`
 
 interface User {
   id: string
@@ -40,7 +41,7 @@ export default function UsersManagementPage() {
   const fetchUsers = async () => {
     try {
       const token = localStorage.getItem('userToken')
-      const res = await fetch(`${API_URL}/users`, {
+      const res = await fetch(`${API_BASE}/users`, {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
@@ -59,7 +60,7 @@ export default function UsersManagementPage() {
     e.preventDefault()
     try {
       const token = localStorage.getItem('userToken')
-      const res = await fetch(`${API_URL}/users`, {
+      const res = await fetch(`${API_BASE}/users`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -99,7 +100,7 @@ export default function UsersManagementPage() {
         updateData.password = formData.password
       }
 
-      const res = await fetch(`${API_URL}/users/${selectedUser.id}`, {
+      const res = await fetch(`${API_BASE}/users/${selectedUser.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -129,7 +130,7 @@ export default function UsersManagementPage() {
 
     try {
       const token = localStorage.getItem('userToken')
-      const res = await fetch(`${API_URL}/users/${userId}`, {
+      const res = await fetch(`${API_BASE}/users/${userId}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -151,7 +152,7 @@ export default function UsersManagementPage() {
   const handleToggleStatus = async (userId: string) => {
     try {
       const token = localStorage.getItem('userToken')
-      const res = await fetch(`${API_URL}/users/${userId}/toggle-status`, {
+      const res = await fetch(`${API_BASE}/users/${userId}/toggle-status`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`,

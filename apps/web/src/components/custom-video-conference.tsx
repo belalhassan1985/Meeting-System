@@ -11,13 +11,14 @@ import {
   useRoomContext,
 } from '@livekit/components-react'
 import { Track, RemoteParticipant, LocalParticipant } from 'livekit-client'
-import { Mic, MicOff, Video, VideoOff, Hand, Pin, PinOff, Users, UserX, LogOut, Grid3x3, LayoutGrid, MessageCircle } from 'lucide-react'
+import { Mic, MicOff, Video, VideoOff, Hand, Pin, PinOff, Users, UserX, LogOut, Grid3x3, LayoutGrid, MessageCircle, Circle, Square } from 'lucide-react'
 import { UserRole } from '@arabic-meet/shared'
 import { useRouter } from 'next/navigation'
 import { ChatPanel } from './chat-panel'
 import { useRoomStore } from '@/store/room-store'
 import { getSocket } from '@/lib/socket'
 import type { ChatMessage } from '@arabic-meet/shared'
+import { LocalRecordingService } from '@/lib/local-recording'
 
 interface CustomVideoConferenceProps {
   userRole: UserRole
@@ -35,8 +36,14 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
   const [unreadMessages, setUnreadMessages] = useState(0)
   const [participantStates, setParticipantStates] = useState<Record<string, { micEnabled: boolean; cameraEnabled: boolean }>>({})
   const [compactMode, setCompactMode] = useState(false)
+  const [isRecording, setIsRecording] = useState(false)
+  const [recordingId, setRecordingId] = useState<string | null>(null)
+  const [recordingDuration, setRecordingDuration] = useState(0)
+  const [localRecorder] = useState(() => new LocalRecordingService())
   const router = useRouter()
   const { addChatMessage, roomId, userId, userName } = useRoomStore()
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
+  const API_BASE = `${API_URL}/api`
 
   const tracks = useTracks(
     [
@@ -83,6 +90,125 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
   const handleSendMessage = (message: string) => {
     const socket = getSocket()
     socket.emit('room:chat', { message })
+  }
+
+  // Recording is manual only - no automatic check
+  // User must click the record button to start recording
+
+  // Recording duration timer
+  useEffect(() => {
+    let interval: NodeJS.Timeout
+    if (isRecording) {
+      interval = setInterval(() => {
+        setRecordingDuration(prev => prev + 1)
+      }, 1000)
+    } else {
+      setRecordingDuration(0)
+    }
+    return () => clearInterval(interval)
+  }, [isRecording])
+
+  const formatDuration = (seconds: number) => {
+    const hrs = Math.floor(seconds / 3600)
+    const mins = Math.floor((seconds % 3600) / 60)
+    const secs = seconds % 60
+    return `${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
+  }
+
+  const handleStartRecording = async () => {
+    if (!roomId || !userId) return
+    try {
+      // Create recording entry in database
+      const res = await fetch(`${API_BASE}/recordings/start/${roomId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId }),
+      })
+      
+      if (res.ok) {
+        const recording = await res.json()
+        setRecordingId(recording.id)
+        
+        // Start local recording
+        try {
+          const roomElement = document.querySelector('.lk-video-conference')
+          await localRecorder.startRecording(roomElement as HTMLElement)
+          setIsRecording(true)
+          console.log('✅ Local recording started successfully')
+        } catch (error) {
+          console.error('Failed to start local recording:', error)
+          // Rollback database entry if recording fails
+          await fetch(`${API_BASE}/recordings/${recording.id}`, { method: 'DELETE' })
+          setRecordingId(null)
+          alert('فشل بدء التسجيل. تأكد من السماح بمشاركة الشاشة.')
+          return
+        }
+      } else {
+        const error = await res.json()
+        alert('فشل بدء التسجيل: ' + (error.message || 'خطأ غير معروف'))
+      }
+    } catch (error) {
+      console.error('Error starting recording:', error)
+      alert('فشل بدء التسجيل')
+    }
+  }
+
+  const handleStopRecording = async () => {
+    if (!recordingId || !userId) return
+    if (!confirm('هل تريد إيقاف التسجيل؟')) return
+    
+    try {
+      // Check if recording is actually active
+      if (!localRecorder.isRecording()) {
+        alert('لا يوجد تسجيل نشط')
+        setIsRecording(false)
+        setRecordingId(null)
+        return
+      }
+
+      // Stop local recording and get blob
+      const blob = await localRecorder.stopRecording()
+      setIsRecording(false)
+      const fileSizeMB = (blob.size / 1024 / 1024).toFixed(2)
+      console.log(`📹 Recording stopped, size: ${fileSizeMB} MB`)
+      
+      // Check file size (max 500MB)
+      if (blob.size > 500 * 1024 * 1024) {
+        alert(`⚠️ حجم الملف كبير جداً (${fileSizeMB} MB)!\nالحد الأقصى: 500 MB\nحاول تسجيل فترة أقصر.`)
+        setRecordingId(null)
+        setRecordingDuration(0)
+        return
+      }
+      
+      // Update recording status in database
+      const res = await fetch(`${API_BASE}/recordings/stop/${recordingId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId }),
+      })
+      
+      if (res.ok) {
+        // Upload recording file
+        alert(`⏳ جاري رفع الملف (${fileSizeMB} MB)...\nقد يستغرق بضع دقائق، لا تغلق المتصفح!`)
+        console.log('⏳ Uploading recording...')
+        
+        try {
+          await localRecorder.uploadRecording(recordingId, blob, API_BASE)
+          setRecordingId(null)
+          setRecordingDuration(0)
+          alert(`✅ تم حفظ التسجيل بنجاح!\nالحجم: ${fileSizeMB} MB`)
+        } catch (uploadError) {
+          console.error('Upload failed:', uploadError)
+          alert(`❌ فشل رفع الملف!\nالخطأ: ${(uploadError as Error).message}\n\nالملف محفوظ محلياً، حاول مرة أخرى لاحقاً.`)
+        }
+      } else {
+        alert('فشل حفظ التسجيل في قاعدة البيانات')
+      }
+    } catch (error) {
+      console.error('Error stopping recording:', error)
+      setIsRecording(false)
+      alert('فشل إيقاف التسجيل: ' + (error as Error).message)
+    }
   }
 
   // Track participant device states
@@ -544,6 +670,35 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
           </div>
           
           <div className="flex items-center gap-2">
+            {/* Recording Controls - Admin Only */}
+            {isAdmin && (
+              <>
+                {!isRecording ? (
+                  <button
+                    onClick={handleStartRecording}
+                    className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-red-600 hover:bg-red-700 text-white transition font-medium"
+                  >
+                    <Circle className="w-5 h-5 fill-current" />
+                    <span>تسجيل</span>
+                  </button>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-red-600 text-white font-medium">
+                      <Circle className="w-3 h-3 fill-current animate-pulse" />
+                      <span className="font-mono">{formatDuration(recordingDuration)}</span>
+                    </div>
+                    <button
+                      onClick={handleStopRecording}
+                      className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-gray-700 hover:bg-gray-600 text-white transition font-medium"
+                    >
+                      <Square className="w-5 h-5" />
+                      <span>إيقاف</span>
+                    </button>
+                  </div>
+                )}
+              </>
+            )}
+
             {/* Chat Button */}
             <button
               onClick={() => setShowChat(!showChat)}

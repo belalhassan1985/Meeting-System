@@ -8,12 +8,13 @@ import { Users, Video, Activity, FileText } from 'lucide-react'
 import Link from 'next/link'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
+const API_BASE = `${API_URL}/api`
 
 export default function AdminDashboard() {
   const { data: stats, isLoading } = useQuery({
     queryKey: ['admin-stats'],
     queryFn: async () => {
-      const res = await fetch(`${API_URL}/admin/stats`)
+      const res = await fetch(`${API_BASE}/admin/stats`)
       if (!res.ok) throw new Error('Failed to fetch stats')
       return res.json()
     },

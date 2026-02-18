@@ -8,6 +8,7 @@ import { ArrowLeft, Filter } from 'lucide-react'
 import Link from 'next/link'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
+const API_BASE = `${API_URL}/api`
 
 const ACTION_LABELS: Record<string, string> = {
   JOIN_ROOM: 'انضم للغرفة',
@@ -30,7 +31,7 @@ export default function AuditLogsPage() {
   const { data, isLoading } = useQuery({
     queryKey: ['admin-audit-logs', page, actionFilter],
     queryFn: async () => {
-      let url = `${API_URL}/admin/audit-logs?page=${page}&limit=50`
+      let url = `${API_BASE}/admin/audit-logs?page=${page}&limit=50`
       if (actionFilter) {
         url += `&action=${actionFilter}`
       }
