@@ -44,6 +44,7 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
   const [videoBitrate, setVideoBitrate] = useState(2500) // kbps
   const [audioBitrate, setAudioBitrate] = useState(64) // kbps
   const [compactMode, setCompactMode] = useState(false)
+  const [isMobile, setIsMobile] = useState(false)
   const [isRecording, setIsRecording] = useState(false)
   const [recordingId, setRecordingId] = useState<string | null>(null)
   const [recordingDuration, setRecordingDuration] = useState(0)
@@ -69,6 +70,26 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
       setCompactMode(true)
     }
   }, [tracks.length])
+
+  // Detect mobile devices and handle responsive behavior
+  useEffect(() => {
+    const checkMobile = () => {
+      const mobile = window.innerWidth < 768
+      setIsMobile(mobile)
+      
+      // Auto-close sidebars on mobile when switching
+      if (mobile) {
+        if (showChat || showSettings || showNetworkStats || showParticipants) {
+          // Keep only one sidebar open at a time on mobile
+        }
+      }
+    }
+    
+    checkMobile()
+    window.addEventListener('resize', checkMobile)
+    
+    return () => window.removeEventListener('resize', checkMobile)
+  }, [])
 
   // WebSocket chat integration
   useEffect(() => {
@@ -695,7 +716,9 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
       <div className="flex-1 flex overflow-hidden relative">
         {/* Chat Sidebar */}
         {showChat && (
-          <div className="absolute top-0 left-0 h-full w-96 bg-gray-900/95 backdrop-blur border-r border-gray-700 z-30 shadow-2xl">
+          <div className={`absolute top-0 left-0 h-full bg-gray-900/95 backdrop-blur border-r border-gray-700 z-30 shadow-2xl ${
+            isMobile ? 'w-full' : 'w-96'
+          }`}>
             <div className="h-full flex flex-col">
               <div className="flex items-center justify-between p-4 border-b border-gray-700">
                 <h3 className="text-white font-semibold">الدردشة</h3>
@@ -710,7 +733,9 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
 
         {/* Network Stats Sidebar */}
         {showNetworkStats && (
-          <div className="absolute top-0 right-0 h-full w-96 bg-gray-900/95 backdrop-blur border-l border-gray-700 z-30 overflow-y-auto shadow-2xl">
+          <div className={`absolute top-0 right-0 h-full bg-gray-900/95 backdrop-blur border-l border-gray-700 z-30 overflow-y-auto shadow-2xl ${
+            isMobile ? 'w-full' : 'w-96'
+          }`}>
             <div className="p-4">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-white font-semibold flex items-center gap-2">
@@ -788,7 +813,9 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
 
         {/* Settings Sidebar */}
         {showSettings && (
-          <div className="absolute top-0 right-0 h-full w-96 bg-gray-900/95 backdrop-blur border-l border-gray-700 z-30 overflow-y-auto shadow-2xl">
+          <div className={`absolute top-0 right-0 h-full bg-gray-900/95 backdrop-blur border-l border-gray-700 z-30 overflow-y-auto shadow-2xl ${
+            isMobile ? 'w-full' : 'w-96'
+          }`}>
             <div className="p-4">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-white font-semibold flex items-center gap-2">
@@ -961,7 +988,9 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
 
         {/* Participants Sidebar */}
         {isAdmin && showParticipants && (
-          <div className="absolute top-0 right-0 h-full w-80 bg-gray-900/95 backdrop-blur border-l border-gray-700 z-30 overflow-y-auto shadow-2xl">
+          <div className={`absolute top-0 right-0 h-full bg-gray-900/95 backdrop-blur border-l border-gray-700 z-30 overflow-y-auto shadow-2xl ${
+            isMobile ? 'w-full' : 'w-80'
+          }`}>
             <div className="p-4">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-white font-semibold flex items-center gap-2">
@@ -1056,10 +1085,12 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
         <div className="flex items-center justify-between max-w-7xl mx-auto">
           <button
             onClick={handleLeave}
-            className="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white px-4 py-2.5 rounded-lg transition font-medium"
+            className={`flex items-center gap-2 rounded-lg bg-red-600 hover:bg-red-700 text-white transition font-medium ${
+              isMobile ? 'p-3' : 'px-4 py-2.5'
+            }`}
           >
             <LogOut className="w-5 h-5" />
-            <span>خروج</span>
+            {!isMobile && <span>خروج</span>}
           </button>
           
           <div className="flex items-center gap-3">
@@ -1153,12 +1184,12 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
             {/* Chat Button */}
             <button
               onClick={() => setShowChat(!showChat)}
-              className={`relative flex items-center gap-2 px-4 py-2.5 rounded-lg transition font-medium ${
+              className={`relative flex items-center gap-2 rounded-lg transition font-medium ${
                 showChat ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-gray-700 hover:bg-gray-600 text-white'
-              }`}
+              } ${isMobile ? 'p-3' : 'px-4 py-2.5'}`}
             >
               <MessageCircle className="w-5 h-5" />
-              <span>الدردشة</span>
+              {!isMobile && <span>الدردشة</span>}
               {unreadMessages > 0 && (
                 <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
                   {unreadMessages > 9 ? '9+' : unreadMessages}
@@ -1180,36 +1211,36 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
             {/* Settings Button */}
             <button
               onClick={() => setShowSettings(!showSettings)}
-              className={`flex items-center gap-2 px-3 py-2.5 rounded-lg transition text-sm font-medium ${
+              className={`flex items-center gap-2 rounded-lg transition text-sm font-medium ${
                 showSettings ? 'bg-purple-600 hover:bg-purple-700 text-white' : 'bg-gray-700 hover:bg-gray-600 text-white'
-              }`}
+              } ${isMobile ? 'p-3' : 'px-3 py-2.5'}`}
               title="إعدادات الجودة"
             >
               <Settings className="w-4 h-4" />
-              <span className="hidden sm:inline">الإعدادات</span>
+              {!isMobile && <span className="hidden sm:inline">الإعدادات</span>}
             </button>
 
             {/* Network Stats Button */}
             <button
               onClick={() => setShowNetworkStats(!showNetworkStats)}
-              className={`flex items-center gap-2 px-3 py-2.5 rounded-lg transition text-sm font-medium ${
+              className={`flex items-center gap-2 rounded-lg transition text-sm font-medium ${
                 showNetworkStats ? 'bg-green-600 hover:bg-green-700 text-white' : 'bg-gray-700 hover:bg-gray-600 text-white'
-              }`}
+              } ${isMobile ? 'p-3' : 'px-3 py-2.5'}`}
               title="إحصائيات الشبكة"
             >
               <Wifi className="w-4 h-4" />
-              <span className="hidden sm:inline">الشبكة</span>
+              {!isMobile && <span className="hidden sm:inline">الشبكة</span>}
             </button>
 
             {isAdmin && (
               <button
                 onClick={() => setShowParticipants(!showParticipants)}
-                className={`flex items-center gap-2 px-4 py-2.5 rounded-lg transition font-medium ${
+                className={`flex items-center gap-2 rounded-lg transition font-medium ${
                   showParticipants ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-gray-700 hover:bg-gray-600 text-white'
-                }`}
+                } ${isMobile ? 'p-3' : 'px-4 py-2.5'}`}
               >
                 <Users className="w-5 h-5" />
-                <span>المشاركون ({participants.length + 1})</span>
+                {!isMobile && <span>المشاركون ({participants.length + 1})</span>}
               </button>
             )}
           </div>
