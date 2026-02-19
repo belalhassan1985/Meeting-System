@@ -55,36 +55,36 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
-      <div className="container mx-auto px-4 py-8">
+      <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-8">
         {/* Header */}
-        <div className="flex justify-between items-center mb-8">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 sm:mb-8">
           <div className="flex items-center gap-3">
-            <Video className="w-10 h-10 text-primary" />
+            <Video className="w-8 h-8 sm:w-10 sm:h-10 text-primary" />
             <div>
-              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+              <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">
                 نظام الاجتماعات
               </h1>
-              <p className="text-sm text-gray-600 dark:text-gray-400">
+              <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">
                 مرحباً، {userInfo.name}
               </p>
             </div>
           </div>
           
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={handleLogout} className="gap-2">
+          <div className="flex gap-2 w-full sm:w-auto">
+            <Button variant="outline" size="sm" onClick={handleLogout} className="gap-2 flex-1 sm:flex-initial">
               <LogOut className="w-4 h-4" />
-              تسجيل الخروج
+              <span className="sm:inline">تسجيل الخروج</span>
             </Button>
           </div>
         </div>
         
-        <div className="text-center mb-12">
-          <p className="text-lg text-gray-600 dark:text-gray-300">
+        <div className="text-center mb-8 sm:mb-12 px-4">
+          <p className="text-sm sm:text-lg text-gray-600 dark:text-gray-300">
             منصة اجتماعات فيديو احترافية للشبكات المحلية
           </p>
         </div>
 
-        <div className="max-w-4xl mx-auto space-y-8">
+        <div className="max-w-4xl mx-auto space-y-6 sm:space-y-8">
           <Card className="hover:shadow-lg transition-shadow">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">

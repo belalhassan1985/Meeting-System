@@ -50,13 +50,13 @@ export default function AuditLogsPage() {
   }
 
   return (
-    <div>
+    <div className="space-y-6 px-4 sm:px-0">
       <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">سجلات الأحداث</h1>
-        <p className="text-gray-600">عرض جميع الأحداث والإجراءات في النظام</p>
+        <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">سجل الأحداث</h1>
+        <p className="text-sm sm:text-base text-gray-600">عرض جميع الأحداث والتغييرات في النظام</p>
       </div>
 
-        <Card className="mb-6">
+      <Card className="mb-6">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Filter className="h-5 w-5" />
@@ -91,7 +91,7 @@ export default function AuditLogsPage() {
             <CardTitle>السجلات ({data?.meta?.total || 0})</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-2">
+            <div className="space-y-6 px-4 sm:px-0">
               {data?.data?.map((log: any) => (
                 <div
                   key={log.id}

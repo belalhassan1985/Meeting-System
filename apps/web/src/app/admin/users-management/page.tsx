@@ -195,18 +195,18 @@ export default function UsersManagementPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
+    <div className="space-y-6 px-4 sm:px-0">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-bold">إدارة المستخدمين</h1>
-          <p className="text-gray-600 dark:text-gray-400">إدارة مستخدمي النظام والصلاحيات</p>
+          <h1 className="text-2xl sm:text-3xl font-bold">إدارة المستخدمين</h1>
+          <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400">إدارة مستخدمي النظام والصلاحيات</p>
         </div>
         
         <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
           <DialogTrigger asChild>
-            <Button className="gap-2">
+            <Button className="gap-2 w-full sm:w-auto">
               <UserPlus className="w-4 h-4" />
-              إضافة مستخدم جديد
+              <span className="sm:inline">إضافة مستخدم جديد</span>
             </Button>
           </DialogTrigger>
           <DialogContent>

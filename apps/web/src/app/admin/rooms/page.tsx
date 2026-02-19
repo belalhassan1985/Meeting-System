@@ -164,18 +164,18 @@ export default function RoomsManagement() {
   }
 
   return (
-    <div>
-      <div className="mb-6 flex items-center justify-between">
+    <div className="px-4 sm:px-0">
+      <div className="mb-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">إدارة الغرف</h1>
-          <p className="text-gray-600">عرض وإدارة جميع الغرف في النظام</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">إدارة الغرف</h1>
+          <p className="text-sm sm:text-base text-gray-600">عرض وإدارة جميع الغرف في النظام</p>
         </div>
         <Button
           onClick={() => setIsCreateModalOpen(true)}
-          className="bg-green-600 hover:bg-green-700"
+          className="bg-green-600 hover:bg-green-700 w-full sm:w-auto"
         >
           <Plus className="h-4 w-4 ml-2" />
-          إنشاء غرفة جديدة
+          <span className="sm:inline">إنشاء غرفة جديدة</span>
         </Button>
       </div>
 

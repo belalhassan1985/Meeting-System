@@ -57,27 +57,27 @@ export function RoomList() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>الغرف النشطة</CardTitle>
-        <CardDescription>انضم إلى إحدى الغرف الجارية</CardDescription>
+        <CardTitle className="text-lg sm:text-xl">الغرف النشطة</CardTitle>
+        <CardDescription className="text-sm">انضم إلى إحدى الغرف الجارية</CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
         {rooms.map((room: any) => (
           <div
             key={room.id}
-            className="flex items-center justify-between p-4 border rounded-lg hover:bg-accent/50 transition-colors"
+            className="flex flex-col sm:flex-row sm:items-center justify-between p-3 sm:p-4 border rounded-lg hover:bg-accent/50 transition-colors gap-3"
           >
-            <div className="flex-1">
-              <h3 className="font-semibold">{room.name}</h3>
+            <div className="flex-1 min-w-0">
+              <h3 className="font-semibold text-base sm:text-lg truncate">{room.name}</h3>
               {room.description && (
-                <p className="text-sm text-muted-foreground">{room.description}</p>
+                <p className="text-xs sm:text-sm text-muted-foreground line-clamp-2">{room.description}</p>
               )}
-              <div className="flex items-center gap-4 mt-2 text-sm text-muted-foreground">
+              <div className="flex items-center gap-3 sm:gap-4 mt-2 text-xs sm:text-sm text-muted-foreground flex-wrap">
                 <span className="flex items-center gap-1">
-                  <Users className="h-4 w-4" />
+                  <Users className="h-3 w-3 sm:h-4 sm:w-4" />
                   {room.participantCount || 0} / {room.maxParticipants}
                 </span>
                 <span className="flex items-center gap-1">
-                  <Clock className="h-4 w-4" />
+                  <Clock className="h-3 w-3 sm:h-4 sm:w-4" />
                   {new Date(room.createdAt).toLocaleTimeString('ar-EG', {
                     hour: '2-digit',
                     minute: '2-digit',
@@ -88,6 +88,8 @@ export function RoomList() {
             <Button
               onClick={() => router.push(`/lobby?roomId=${room.id}`)}
               disabled={room.participantCount >= room.maxParticipants}
+              className="w-full sm:w-auto"
+              size="sm"
             >
               انضم
             </Button>

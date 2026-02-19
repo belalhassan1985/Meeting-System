@@ -51,46 +51,48 @@ export default function UsersManagement() {
   }
 
   return (
-    <div>
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">إدارة المستخدمين</h1>
-        <p className="text-gray-600">عرض وإدارة جميع المستخدمين في النظام</p>
+    <div className="space-y-6 px-4 sm:px-0">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">إدارة المستخدمين</h1>
+          <p className="text-sm sm:text-base text-gray-600">عرض وإدارة جميع المستخدمين</p>
+        </div>
       </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>قائمة المستخدمين ({data?.meta?.total || 0})</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {data?.data?.map((user: any) => (
-                <div
-                  key={user.id}
-                  className="flex items-center justify-between p-4 bg-white border rounded-lg hover:shadow-md transition-shadow"
-                >
-                  <div className="flex-1">
-                    <h3 className="font-semibold text-lg">{user.name}</h3>
-                    <p className="text-sm text-gray-600">{user.email || 'لا يوجد بريد إلكتروني'}</p>
-                    <p className="text-xs text-gray-400 mt-1">
-                      تاريخ التسجيل: {new Date(user.createdAt).toLocaleDateString('ar-SA')}
-                    </p>
-                  </div>
-                  <div className="flex gap-2">
-                    <Link href={`/admin/users/${user.id}`}>
-                      <Button variant="outline" size="sm">
-                        <Eye className="h-4 w-4" />
-                      </Button>
-                    </Link>
-                    <Button
-                      variant="destructive"
-                      size="sm"
-                      onClick={() => handleDelete(user.id, user.name)}
-                      disabled={deleteMutation.isPending}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
+      <Card>
+        <CardHeader>
+          <CardTitle>قائمة المستخدمين ({data?.meta?.total || 0})</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-3">
+            {data?.data?.map((user: any) => (
+              <div
+                key={user.id}
+                className="flex items-center justify-between p-4 bg-white border rounded-lg hover:shadow-md transition-shadow"
+              >
+                <div className="flex-1">
+                  <h3 className="font-semibold text-lg">{user.name}</h3>
+                  <p className="text-sm text-gray-600">{user.email || 'لا يوجد بريد إلكتروني'}</p>
+                  <p className="text-xs text-gray-400 mt-1">
+                    تاريخ التسجيل: {new Date(user.createdAt).toLocaleDateString('ar-SA')}
+                  </p>
                 </div>
+                <div className="flex gap-2">
+                  <Link href={`/admin/users/${user.id}`}>
+                    <Button variant="outline" size="sm">
+                      <Eye className="h-4 w-4" />
+                    </Button>
+                  </Link>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => handleDelete(user.id, user.name)}
+                    disabled={deleteMutation.isPending}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
               ))}
 
               {(!data?.data || data.data.length === 0) && (
