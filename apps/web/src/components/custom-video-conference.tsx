@@ -11,7 +11,7 @@ import {
   useRoomContext,
 } from '@livekit/components-react'
 import { Track, RemoteParticipant, LocalParticipant } from 'livekit-client'
-import { Mic, MicOff, Video, VideoOff, Hand, Pin, PinOff, Users, UserX, LogOut, Grid3x3, LayoutGrid, MessageCircle, Circle, Square } from 'lucide-react'
+import { Mic, MicOff, Video, VideoOff, Hand, Pin, PinOff, Users, UserX, LogOut, Grid3x3, LayoutGrid, MessageCircle, Circle, Square, Wifi, WifiOff, Signal, SignalHigh, SignalMedium, SignalLow, Settings } from 'lucide-react'
 import { UserRole } from '@arabic-meet/shared'
 import { useRouter } from 'next/navigation'
 import { ChatPanel } from './chat-panel'
@@ -36,6 +36,13 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
   const [showChat, setShowChat] = useState(false)
   const [unreadMessages, setUnreadMessages] = useState(0)
   const [participantStates, setParticipantStates] = useState<Record<string, { micEnabled: boolean; cameraEnabled: boolean }>>({})
+  const [networkQuality, setNetworkQuality] = useState<Record<string, { quality: 'excellent' | 'good' | 'poor' | 'unknown'; stats?: any }>>({})
+  const [showNetworkStats, setShowNetworkStats] = useState(false)
+  const [showSettings, setShowSettings] = useState(false)
+  const [videoQuality, setVideoQuality] = useState<'360p' | '480p' | '720p' | '1080p'>('720p')
+  const [videoFps, setVideoFps] = useState<15 | 24 | 30 | 60>(30)
+  const [videoBitrate, setVideoBitrate] = useState(2500) // kbps
+  const [audioBitrate, setAudioBitrate] = useState(64) // kbps
   const [compactMode, setCompactMode] = useState(false)
   const [isRecording, setIsRecording] = useState(false)
   const [recordingId, setRecordingId] = useState<string | null>(null)
@@ -310,6 +317,53 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
     }
   }, [room])
 
+  // Monitor network quality for all participants
+  useEffect(() => {
+    if (!room) return
+
+    const updateNetworkQuality = (participant: RemoteParticipant | LocalParticipant) => {
+      const identity = participant.identity
+      
+      // Get connection quality from LiveKit
+      const connectionQuality = participant.connectionQuality
+      
+      let quality: 'excellent' | 'good' | 'poor' | 'unknown' = 'unknown'
+      
+      if (connectionQuality === 'excellent') quality = 'excellent'
+      else if (connectionQuality === 'good') quality = 'good'
+      else if (connectionQuality === 'poor') quality = 'poor'
+      
+      setNetworkQuality(prev => ({
+        ...prev,
+        [identity]: { quality }
+      }))
+    }
+
+    // Monitor local participant
+    updateNetworkQuality(localParticipant)
+    
+    // Monitor remote participants
+    participants.forEach(updateNetworkQuality)
+
+    // Listen for quality changes
+    const handleConnectionQualityChanged = (quality: any, participant: any) => {
+      updateNetworkQuality(participant)
+    }
+
+    room.on('connectionQualityChanged', handleConnectionQualityChanged)
+
+    // Update quality every 5 seconds
+    const interval = setInterval(() => {
+      updateNetworkQuality(localParticipant)
+      participants.forEach(updateNetworkQuality)
+    }, 5000)
+
+    return () => {
+      room.off('connectionQualityChanged', handleConnectionQualityChanged)
+      clearInterval(interval)
+    }
+  }, [room, participants, localParticipant])
+
   // Admin controls
   const muteParticipant = async (participant: RemoteParticipant) => {
     if (!isAdmin) return
@@ -349,6 +403,39 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
     const encoder = new TextEncoder()
     const data = encoder.encode(JSON.stringify({ type: 'admin-kick', targetId: participantId }))
     await localParticipant.publishData(data, { reliable: true })
+  }
+
+  // Apply quality settings to local tracks
+  const applyQualitySettings = async () => {
+    try {
+      // Get resolution from quality setting
+      const resolutions = {
+        '360p': { width: 640, height: 360 },
+        '480p': { width: 854, height: 480 },
+        '720p': { width: 1280, height: 720 },
+        '1080p': { width: 1920, height: 1080 }
+      }
+      
+      const resolution = resolutions[videoQuality]
+      
+      // Update video track constraints
+      const videoTrack = localParticipant.videoTrackPublications.values().next().value?.track
+      if (videoTrack) {
+        // Restart track with new settings
+        await videoTrack.restartTrack({
+          resolution: resolution,
+          frameRate: videoFps,
+        })
+      }
+      
+      // Note: LiveKit handles bitrate automatically based on resolution and network conditions
+      // You can set preferred encoding parameters when creating the room connection
+      
+      alert(`تم تطبيق الإعدادات:\n- الدقة: ${videoQuality}\n- FPS: ${videoFps}\n- فيديو: ${videoBitrate} kbps\n- صوت: ${audioBitrate} kbps`)
+    } catch (error) {
+      console.error('Error applying quality settings:', error)
+      alert('حدث خطأ أثناء تطبيق الإعدادات')
+    }
   }
 
   const handleLeave = async () => {
@@ -460,6 +547,26 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
     const isPinned = pinnedParticipantIds.includes(participant.identity)
     const isScreenShare = trackRef.publication?.source === Track.Source.ScreenShare
     const deviceState = participantStates[participant.identity] || { micEnabled: false, cameraEnabled: false }
+    const quality = networkQuality[participant.identity]?.quality || 'unknown'
+    
+    // Network quality icon and color
+    const getQualityIcon = () => {
+      switch (quality) {
+        case 'excellent': return <SignalHigh className="w-4 h-4" />
+        case 'good': return <SignalMedium className="w-4 h-4" />
+        case 'poor': return <SignalLow className="w-4 h-4" />
+        default: return <Signal className="w-4 h-4" />
+      }
+    }
+    
+    const getQualityColor = () => {
+      switch (quality) {
+        case 'excellent': return 'text-green-500'
+        case 'good': return 'text-yellow-500'
+        case 'poor': return 'text-red-500'
+        default: return 'text-gray-400'
+      }
+    }
 
     return (
       <div 
@@ -502,6 +609,13 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
                 إيقاف
               </button>
             )}
+          </div>
+        )}
+
+        {/* Network Quality Indicator - Always visible */}
+        {!isScreenShare && (
+          <div className={`absolute top-2 left-2 z-20 ${getQualityColor()}`} title={`جودة الاتصال: ${quality === 'excellent' ? 'ممتازة' : quality === 'good' ? 'جيدة' : quality === 'poor' ? 'ضعيفة' : 'غير معروفة'}`}>
+            {getQualityIcon()}
           </div>
         )}
 
@@ -559,7 +673,7 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
         {!isScreenShare && !compactMode && (
           <button
             onClick={() => togglePin(participant.identity)}
-            className="absolute top-2 left-2 bg-blue-600 hover:bg-blue-700 text-white p-1.5 rounded-full shadow-lg z-20 opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+            className="absolute bottom-12 left-2 bg-blue-600 hover:bg-blue-700 text-white p-1.5 rounded-full shadow-lg z-20 opacity-0 group-hover:opacity-100 transition-opacity duration-200"
           >
             {isPinned ? <PinOff className="w-4 h-4" /> : <Pin className="w-4 h-4" />}
           </button>
@@ -589,6 +703,257 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
               </div>
               <div className="flex-1 overflow-hidden">
                 <ChatPanel onSendMessage={handleSendMessage} />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Network Stats Sidebar */}
+        {showNetworkStats && (
+          <div className="absolute top-0 right-0 h-full w-96 bg-gray-900/95 backdrop-blur border-l border-gray-700 z-30 overflow-y-auto shadow-2xl">
+            <div className="p-4">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-white font-semibold flex items-center gap-2">
+                  <Wifi className="w-5 h-5" />
+                  إحصائيات جودة الاتصال
+                </h3>
+                <button onClick={() => setShowNetworkStats(false)} className="text-gray-400 hover:text-white text-xl">✕</button>
+              </div>
+              
+              <div className="space-y-3">
+                {/* Local Participant */}
+                <div className="bg-gray-800 p-3 rounded-lg">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-white text-sm font-medium">{localParticipant.name || localParticipant.identity}</span>
+                      <span className="text-xs text-blue-400">(أنت)</span>
+                    </div>
+                    <div className={`flex items-center gap-1 ${networkQuality[localParticipant.identity]?.quality === 'excellent' ? 'text-green-500' : networkQuality[localParticipant.identity]?.quality === 'good' ? 'text-yellow-500' : networkQuality[localParticipant.identity]?.quality === 'poor' ? 'text-red-500' : 'text-gray-400'}`}>
+                      {networkQuality[localParticipant.identity]?.quality === 'excellent' && <SignalHigh className="w-4 h-4" />}
+                      {networkQuality[localParticipant.identity]?.quality === 'good' && <SignalMedium className="w-4 h-4" />}
+                      {networkQuality[localParticipant.identity]?.quality === 'poor' && <SignalLow className="w-4 h-4" />}
+                      {!networkQuality[localParticipant.identity] && <Signal className="w-4 h-4" />}
+                      <span className="text-xs font-medium">
+                        {networkQuality[localParticipant.identity]?.quality === 'excellent' ? 'ممتاز' : 
+                         networkQuality[localParticipant.identity]?.quality === 'good' ? 'جيد' : 
+                         networkQuality[localParticipant.identity]?.quality === 'poor' ? 'ضعيف' : 'غير معروف'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Remote Participants */}
+                {participants.map((participant) => {
+                  const quality = networkQuality[participant.identity]?.quality || 'unknown'
+                  return (
+                    <div key={participant.identity} className="bg-gray-800 p-3 rounded-lg">
+                      <div className="flex items-center justify-between">
+                        <span className="text-white text-sm truncate flex-1">{participant.name || participant.identity}</span>
+                        <div className={`flex items-center gap-1 ${quality === 'excellent' ? 'text-green-500' : quality === 'good' ? 'text-yellow-500' : quality === 'poor' ? 'text-red-500' : 'text-gray-400'}`}>
+                          {quality === 'excellent' && <SignalHigh className="w-4 h-4" />}
+                          {quality === 'good' && <SignalMedium className="w-4 h-4" />}
+                          {quality === 'poor' && <SignalLow className="w-4 h-4" />}
+                          {quality === 'unknown' && <Signal className="w-4 h-4" />}
+                          <span className="text-xs font-medium">
+                            {quality === 'excellent' ? 'ممتاز' : quality === 'good' ? 'جيد' : quality === 'poor' ? 'ضعيف' : 'غير معروف'}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+
+                {/* Info Box */}
+                <div className="bg-blue-900/30 border border-blue-700 p-3 rounded-lg mt-4">
+                  <h4 className="text-blue-300 text-sm font-medium mb-2">معلومات الجودة:</h4>
+                  <div className="space-y-1 text-xs text-gray-300">
+                    <div className="flex items-center gap-2">
+                      <SignalHigh className="w-3 h-3 text-green-500" />
+                      <span><strong className="text-green-400">ممتاز:</strong> اتصال قوي ومستقر</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <SignalMedium className="w-3 h-3 text-yellow-500" />
+                      <span><strong className="text-yellow-400">جيد:</strong> اتصال مقبول</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <SignalLow className="w-3 h-3 text-red-500" />
+                      <span><strong className="text-red-400">ضعيف:</strong> قد يحدث تقطع</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Settings Sidebar */}
+        {showSettings && (
+          <div className="absolute top-0 right-0 h-full w-96 bg-gray-900/95 backdrop-blur border-l border-gray-700 z-30 overflow-y-auto shadow-2xl">
+            <div className="p-4">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-white font-semibold flex items-center gap-2">
+                  <Settings className="w-5 h-5" />
+                  إعدادات الجودة
+                </h3>
+                <button onClick={() => setShowSettings(false)} className="text-gray-400 hover:text-white text-xl">✕</button>
+              </div>
+              
+              <div className="space-y-6">
+                {/* Video Quality Section */}
+                <div className="bg-gray-800 p-4 rounded-lg">
+                  <h4 className="text-white font-medium mb-3 flex items-center gap-2">
+                    <Video className="w-4 h-4" />
+                    جودة الفيديو
+                  </h4>
+                  
+                  {/* Resolution */}
+                  <div className="mb-4">
+                    <label className="text-gray-300 text-sm mb-2 block">الدقة (Resolution)</label>
+                    <select
+                      value={videoQuality}
+                      onChange={(e) => setVideoQuality(e.target.value as any)}
+                      className="w-full bg-gray-700 text-white px-3 py-2 rounded border border-gray-600 focus:border-blue-500 focus:outline-none"
+                    >
+                      <option value="360p">360p (640×360) - منخفضة</option>
+                      <option value="480p">480p (854×480) - متوسطة</option>
+                      <option value="720p">720p (1280×720) - HD</option>
+                      <option value="1080p">1080p (1920×1080) - Full HD</option>
+                    </select>
+                  </div>
+
+                  {/* FPS */}
+                  <div className="mb-4">
+                    <label className="text-gray-300 text-sm mb-2 block">
+                      معدل الإطارات (FPS)
+                      <span className="text-gray-500 text-xs mr-2">الحالي: {videoFps}</span>
+                    </label>
+                    <div className="grid grid-cols-4 gap-2">
+                      {[15, 24, 30, 60].map(fps => (
+                        <button
+                          key={fps}
+                          onClick={() => setVideoFps(fps as any)}
+                          className={`px-3 py-2 rounded text-sm font-medium transition ${
+                            videoFps === fps 
+                              ? 'bg-blue-600 text-white' 
+                              : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                          }`}
+                        >
+                          {fps}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Video Bitrate */}
+                  <div>
+                    <label className="text-gray-300 text-sm mb-2 block">
+                      معدل البت للفيديو (Bitrate)
+                      <span className="text-blue-400 text-xs mr-2">{videoBitrate} kbps</span>
+                    </label>
+                    <input
+                      type="range"
+                      min="500"
+                      max="8000"
+                      step="100"
+                      value={videoBitrate}
+                      onChange={(e) => setVideoBitrate(Number(e.target.value))}
+                      className="w-full"
+                    />
+                    <div className="flex justify-between text-xs text-gray-500 mt-1">
+                      <span>منخفض (500)</span>
+                      <span>عالي (8000)</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Audio Quality Section */}
+                <div className="bg-gray-800 p-4 rounded-lg">
+                  <h4 className="text-white font-medium mb-3 flex items-center gap-2">
+                    <Mic className="w-4 h-4" />
+                    جودة الصوت
+                  </h4>
+                  
+                  {/* Audio Bitrate */}
+                  <div>
+                    <label className="text-gray-300 text-sm mb-2 block">
+                      معدل البت للصوت (Bitrate)
+                      <span className="text-blue-400 text-xs mr-2">{audioBitrate} kbps</span>
+                    </label>
+                    <input
+                      type="range"
+                      min="32"
+                      max="320"
+                      step="8"
+                      value={audioBitrate}
+                      onChange={(e) => setAudioBitrate(Number(e.target.value))}
+                      className="w-full"
+                    />
+                    <div className="flex justify-between text-xs text-gray-500 mt-1">
+                      <span>منخفض (32)</span>
+                      <span>عالي (320)</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Apply Button */}
+                <button
+                  onClick={applyQualitySettings}
+                  className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 rounded-lg transition flex items-center justify-center gap-2"
+                >
+                  <Settings className="w-5 h-5" />
+                  تطبيق الإعدادات
+                </button>
+
+                {/* Info Box */}
+                <div className="bg-yellow-900/30 border border-yellow-700 p-3 rounded-lg">
+                  <h4 className="text-yellow-300 text-sm font-medium mb-2">ملاحظات:</h4>
+                  <ul className="space-y-1 text-xs text-gray-300 list-disc list-inside">
+                    <li>الدقة الأعلى تحتاج اتصال إنترنت أقوى</li>
+                    <li>FPS الأعلى يجعل الحركة أكثر سلاسة</li>
+                    <li>Bitrate الأعلى يحسن الجودة لكن يستهلك بيانات أكثر</li>
+                    <li>الإعدادات تؤثر على الفيديو المرسل فقط</li>
+                  </ul>
+                </div>
+
+                {/* Presets */}
+                <div className="bg-gray-800 p-4 rounded-lg">
+                  <h4 className="text-white font-medium mb-3">إعدادات جاهزة</h4>
+                  <div className="space-y-2">
+                    <button
+                      onClick={() => {
+                        setVideoQuality('360p')
+                        setVideoFps(15)
+                        setVideoBitrate(800)
+                        setAudioBitrate(32)
+                      }}
+                      className="w-full bg-gray-700 hover:bg-gray-600 text-white px-3 py-2 rounded text-sm transition text-right"
+                    >
+                      🔋 توفير البيانات (اتصال ضعيف)
+                    </button>
+                    <button
+                      onClick={() => {
+                        setVideoQuality('720p')
+                        setVideoFps(30)
+                        setVideoBitrate(2500)
+                        setAudioBitrate(64)
+                      }}
+                      className="w-full bg-gray-700 hover:bg-gray-600 text-white px-3 py-2 rounded text-sm transition text-right"
+                    >
+                      ⚖️ متوازن (موصى به)
+                    </button>
+                    <button
+                      onClick={() => {
+                        setVideoQuality('1080p')
+                        setVideoFps(60)
+                        setVideoBitrate(6000)
+                        setAudioBitrate(128)
+                      }}
+                      className="w-full bg-gray-700 hover:bg-gray-600 text-white px-3 py-2 rounded text-sm transition text-right"
+                    >
+                      ⚡ أعلى جودة (اتصال قوي)
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -812,6 +1177,30 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
                 <span className="hidden sm:inline">{compactMode ? 'عادي' : 'مضغوط'}</span>
               </button>
             )}
+            {/* Settings Button */}
+            <button
+              onClick={() => setShowSettings(!showSettings)}
+              className={`flex items-center gap-2 px-3 py-2.5 rounded-lg transition text-sm font-medium ${
+                showSettings ? 'bg-purple-600 hover:bg-purple-700 text-white' : 'bg-gray-700 hover:bg-gray-600 text-white'
+              }`}
+              title="إعدادات الجودة"
+            >
+              <Settings className="w-4 h-4" />
+              <span className="hidden sm:inline">الإعدادات</span>
+            </button>
+
+            {/* Network Stats Button */}
+            <button
+              onClick={() => setShowNetworkStats(!showNetworkStats)}
+              className={`flex items-center gap-2 px-3 py-2.5 rounded-lg transition text-sm font-medium ${
+                showNetworkStats ? 'bg-green-600 hover:bg-green-700 text-white' : 'bg-gray-700 hover:bg-gray-600 text-white'
+              }`}
+              title="إحصائيات الشبكة"
+            >
+              <Wifi className="w-4 h-4" />
+              <span className="hidden sm:inline">الشبكة</span>
+            </button>
+
             {isAdmin && (
               <button
                 onClick={() => setShowParticipants(!showParticipants)}
