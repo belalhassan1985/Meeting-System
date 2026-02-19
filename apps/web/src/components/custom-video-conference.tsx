@@ -30,7 +30,8 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
   const room = useRoomContext()
   const [handRaised, setHandRaised] = useState(false)
   const [raisedHands, setRaisedHands] = useState<Set<string>>(new Set())
-  const [pinnedParticipantId, setPinnedParticipantId] = useState<string | null>(null)
+  const [pinnedParticipantIds, setPinnedParticipantIds] = useState<string[]>([])
+  const [layoutMode, setLayoutMode] = useState<'grid' | 'spotlight' | 'dual'>('grid')
   const [showParticipants, setShowParticipants] = useState(false)
   const [showChat, setShowChat] = useState(false)
   const [unreadMessages, setUnreadMessages] = useState(0)
@@ -390,18 +391,46 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
   }, [room, localParticipant, isAdmin])
 
   const togglePin = (participantId: string) => {
-    setPinnedParticipantId(prev => prev === participantId ? null : participantId)
+    setPinnedParticipantIds(prev => {
+      if (prev.includes(participantId)) {
+        // Unpin
+        const newPinned = prev.filter(id => id !== participantId)
+        if (newPinned.length === 0) setLayoutMode('grid')
+        else if (newPinned.length === 1) setLayoutMode('spotlight')
+        return newPinned
+      } else {
+        // Pin (max 2)
+        if (prev.length >= 2) {
+          alert('يمكنك تثبيت شاشتين كحد أقصى')
+          return prev
+        }
+        const newPinned = [...prev, participantId]
+        if (newPinned.length === 1) setLayoutMode('spotlight')
+        else if (newPinned.length === 2) setLayoutMode('dual')
+        return newPinned
+      }
+    })
   }
 
+  // Get pinned tracks or screen share
   const screenShareTrack = tracks.find(t => t.publication?.source === Track.Source.ScreenShare)
-  const pinnedTrack = tracks.find(t => t.participant.identity === pinnedParticipantId)
-  const mainTrack = pinnedTrack || screenShareTrack
+  const pinnedTracks = pinnedParticipantIds
+    .map(id => tracks.find(t => t.participant.identity === id))
+    .filter(Boolean) as any[]
   
-  const otherTracks = mainTrack 
+  // Main track(s) based on layout mode
+  const mainTracks = screenShareTrack 
+    ? [screenShareTrack] 
+    : layoutMode === 'grid' 
+    ? [] 
+    : pinnedTracks.length > 0 
+    ? pinnedTracks 
+    : []
+  
+  const otherTracks = mainTracks.length > 0
     ? tracks.filter(t => {
-        const trackId = t.publication?.trackSid || t.participant.identity
-        const mainId = mainTrack.publication?.trackSid || mainTrack.participant.identity
-        return trackId !== mainId
+        const trackId = t.participant.identity
+        return !mainTracks.some(mt => mt && mt.participant.identity === trackId)
       })
     : []
 
@@ -428,7 +457,7 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
     const participant = trackRef.participant
     const isLocal = participant instanceof LocalParticipant
     const hasRaisedHand = raisedHands.has(participant.identity)
-    const isPinned = participant.identity === pinnedParticipantId
+    const isPinned = pinnedParticipantIds.includes(participant.identity)
     const isScreenShare = trackRef.publication?.source === Track.Source.ScreenShare
     const deviceState = participantStates[participant.identity] || { micEnabled: false, cameraEnabled: false }
 
@@ -624,9 +653,20 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
           </div>
         )}
 
-        {mainTrack ? (
+        {mainTracks.length > 0 ? (
           <div className="flex-1 flex gap-3 p-3">
-            <div className="flex-1">{renderVideoTile(mainTrack, true, false)}</div>
+            {/* Main video area - 1 or 2 large videos */}
+            <div className={`flex-1 flex gap-3 ${
+              mainTracks.length === 2 ? 'flex-col' : ''
+            }`}>
+              {mainTracks.map(track => track && (
+                <div key={track.participant.identity} className="flex-1">
+                  {renderVideoTile(track, true, false)}
+                </div>
+              ))}
+            </div>
+            
+            {/* Sidebar with other participants */}
             {otherTracks.length > 0 && (
               <div className="w-80 flex flex-col gap-3 overflow-y-auto overflow-x-hidden pr-2 pb-2">
                 {otherTracks.map(trackRef => renderVideoTile(trackRef, false, true))}
@@ -697,6 +737,52 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
                   </div>
                 )}
               </>
+            )}
+
+            {/* Layout Mode Controls */}
+            {pinnedParticipantIds.length > 0 && (
+              <div className="flex items-center gap-1 bg-gray-800 rounded-lg p-1">
+                <button
+                  onClick={() => {
+                    setPinnedParticipantIds([])
+                    setLayoutMode('grid')
+                  }}
+                  className={`flex items-center gap-1.5 px-3 py-2 rounded transition text-sm font-medium ${
+                    layoutMode === 'grid' ? 'bg-blue-600 text-white' : 'text-gray-300 hover:bg-gray-700'
+                  }`}
+                  title="عرض الشبكة"
+                >
+                  <LayoutGrid className="w-4 h-4" />
+                  <span className="hidden sm:inline">شبكة</span>
+                </button>
+                <button
+                  onClick={() => {
+                    if (pinnedParticipantIds.length > 0) {
+                      setPinnedParticipantIds([pinnedParticipantIds[0]])
+                      setLayoutMode('spotlight')
+                    }
+                  }}
+                  className={`flex items-center gap-1.5 px-3 py-2 rounded transition text-sm font-medium ${
+                    layoutMode === 'spotlight' ? 'bg-blue-600 text-white' : 'text-gray-300 hover:bg-gray-700'
+                  }`}
+                  title="شاشة واحدة كبيرة"
+                >
+                  <Square className="w-4 h-4" />
+                  <span className="hidden sm:inline">واحدة</span>
+                </button>
+                {pinnedParticipantIds.length === 2 && (
+                  <button
+                    onClick={() => setLayoutMode('dual')}
+                    className={`flex items-center gap-1.5 px-3 py-2 rounded transition text-sm font-medium ${
+                      layoutMode === 'dual' ? 'bg-blue-600 text-white' : 'text-gray-300 hover:bg-gray-700'
+                    }`}
+                    title="شاشتين كبيرتين"
+                  >
+                    <Grid3x3 className="w-4 h-4" />
+                    <span className="hidden sm:inline">اثنتين</span>
+                  </button>
+                )}
+              </div>
             )}
 
             {/* Chat Button */}
