@@ -43,7 +43,7 @@ function RoomContent() {
     setRoomInfo(roomId, userId, userName, userRole)
 
     const socket = connectSocket()
-    
+
     socket.emit('room:join', {
       roomId,
       userId,
@@ -66,6 +66,7 @@ function RoomContent() {
   }
 
   const livekitUrl = process.env.NEXT_PUBLIC_LIVEKIT_URL || 'ws://localhost:7880'
+  const isAdmin = userRole === UserRole.ADMIN || (userRole as string) === 'HOST' || (userRole as string) === 'admin' // Ensure same condition as conference
 
   const handleDisconnected = () => {
     // Redirect to home page when disconnected

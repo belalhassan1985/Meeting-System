@@ -5,12 +5,12 @@ import {
   useParticipants,
   useLocalParticipant,
   useTracks,
-  TrackRefContext,
   ParticipantTile,
   ControlBar,
   useRoomContext,
+  TrackRefContext,
 } from '@livekit/components-react'
-import { Track, RemoteParticipant, LocalParticipant } from 'livekit-client'
+import { Track, RemoteParticipant, LocalParticipant, ConnectionState } from 'livekit-client'
 import { Mic, MicOff, Video, VideoOff, Hand, Pin, PinOff, Users, UserX, LogOut, Grid3x3, LayoutGrid, MessageCircle, Circle, Square, Wifi, WifiOff, Signal, SignalHigh, SignalMedium, SignalLow, Settings } from 'lucide-react'
 import { UserRole } from '@arabic-meet/shared'
 import { useRouter } from 'next/navigation'
@@ -51,8 +51,6 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
   // Advanced Admin Controls State
   const isAdmin = userRole === UserRole.ADMIN || userRole === UserRole.HOST || userRole === UserRole.COHOST
   const [globalHardMute, setGlobalHardMute] = useState(false)
-  const [isWaitingAdmin, setIsWaitingAdmin] = useState(!isAdmin)
-  const [waitingUsers, setWaitingUsers] = useState<{ id: string, name: string }[]>([])
   const [recordingId, setRecordingId] = useState<string | null>(null)
   const [recordingDuration, setRecordingDuration] = useState(0)
   const [localRecorder] = useState(() => new LocalRecordingService())
@@ -68,27 +66,6 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
     ],
     { onlySubscribed: false }
   )
-
-  // Waiting Room Logic: Auto-disable AV for waiting users and notify admins
-  useEffect(() => {
-    if (isWaitingAdmin && room && localParticipant) {
-      // Ensure AV is disabled while in waiting room
-      localParticipant.setMicrophoneEnabled(false)
-      localParticipant.setCameraEnabled(false)
-
-      const notifyInterval = setInterval(() => {
-        const encoder = new TextEncoder()
-        const data = encoder.encode(JSON.stringify({
-          type: 'user-waiting',
-          targetId: localParticipant.identity,
-          name: userName || localParticipant.name || localParticipant.identity
-        }))
-        localParticipant.publishData(data, { reliable: true })
-      }, 3000) // Send periodically until admitted
-
-      return () => clearInterval(notifyInterval)
-    }
-  }, [isWaitingAdmin, room, localParticipant, userName])
 
   // Hard Mute Logic: Prevent unmuting if locked
   useEffect(() => {
@@ -549,11 +526,12 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
 
   // Listen for admin commands
   useEffect(() => {
-    if (!room || isAdmin) return
+    if (!room) return
 
     const handleDataReceived = async (payload: Uint8Array) => {
       const decoder = new TextDecoder()
       const data = JSON.parse(decoder.decode(payload))
+
       if (data.targetId !== localParticipant.identity) return
 
       if (data.type === 'admin-mute') {
@@ -581,15 +559,6 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
       } else if (data.type === 'admin-force-unpin') {
         setPinnedParticipantIds([])
         setLayoutMode('grid')
-      } else if (data.type === 'admin-admit' && isWaitingAdmin) {
-        setIsWaitingAdmin(false)
-      } else if (data.type === 'user-waiting' && isAdmin) {
-        setWaitingUsers(prev => {
-          if (!prev.find(u => u.id === data.targetId)) {
-            return [...prev, { id: data.targetId, name: data.name }]
-          }
-          return prev
-        })
       }
     }
 
@@ -621,27 +590,24 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
     })
   }
 
-  // Get pinned tracks or screen share
   const screenShareTrack = tracks.find(t => t.publication?.source === Track.Source.ScreenShare)
   const pinnedTracks = pinnedParticipantIds
     .map(id => tracks.find(t => t.participant.identity === id))
     .filter(Boolean) as any[]
 
+  // Separate local and remote tracks for layout
+  const localTracks = tracks.filter(t => t.participant.identity === localParticipant.identity)
+
   // Main track(s) based on layout mode
   const mainTracks = screenShareTrack
-    ? [screenShareTrack]
-    : layoutMode === 'grid'
-      ? []
-      : pinnedTracks.length > 0
-        ? pinnedTracks
+    ? [screenShareTrack] // Screen share always takes precedence
+    : layoutMode === 'spotlight'
+      ? [pinnedTracks[0] || localTracks[0] || tracks[0]].filter(Boolean)
+      : layoutMode === 'dual'
+        ? pinnedTracks.slice(0, 2)
         : []
 
-  const otherTracks = mainTracks.length > 0
-    ? tracks.filter(t => {
-      const trackId = t.participant.identity
-      return !mainTracks.some(mt => mt && mt.participant.identity === trackId)
-    })
-    : []
+  const otherTracks = tracks.filter(t => !mainTracks.includes(t as any))
 
   // Professional grid layout calculation (like Google Meet/Zoom)
   const getGridLayout = () => {
@@ -814,32 +780,8 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
     )
   }
 
-  if (isWaitingAdmin) {
-    return (
-      <div className="flex flex-col h-screen w-screen bg-gray-950 items-center justify-center relative">
-        {userName && userId && <Watermark text={`${userName} - ${userId}`} />}
-        <div className="bg-gray-900 border border-gray-800 p-8 rounded-2xl text-center max-w-md w-full shadow-2xl z-10">
-          <div className="w-16 h-16 bg-blue-600/20 rounded-full flex items-center justify-center mx-auto mb-6">
-            <Users className="w-8 h-8 text-blue-500" />
-          </div>
-          <h2 className="text-2xl font-bold text-white mb-3">غرفة الانتظار</h2>
-          <p className="text-gray-400 mb-6 font-medium leading-relaxed">
-            يرجى الانتظار، سيسمح لك مدير الاجتماع بالدخول قريباً...
-          </p>
-          <div className="flex justify-center">
-            <div className="flex gap-2">
-              <div className="w-3 h-3 bg-blue-600 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-              <div className="w-3 h-3 bg-blue-600 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-              <div className="w-3 h-3 bg-blue-600 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
-            </div>
-          </div>
-        </div>
-      </div>
-    )
-  }
-
   return (
-    <div className="flex flex-col h-screen w-screen bg-gray-950">
+    <div className="flex flex-col h-screen w-screen bg-gray-950 relative">
       {/* Video Layout */}
       <div className="flex-1 flex overflow-hidden relative">
         {userName && <Watermark text={userName} />}
@@ -1142,31 +1084,6 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
                 </button>
               </div>
 
-              {/* Waiting Users List */}
-              {waitingUsers.length > 0 && (
-                <div className="mb-4">
-                  <h4 className="text-gray-400 text-xs font-semibold uppercase mb-2">في الانتظار ({waitingUsers.length})</h4>
-                  <div className="space-y-2">
-                    {waitingUsers.map(user => (
-                      <div key={user.id} className="bg-gray-800/50 border border-gray-700 p-3 rounded-lg flex items-center justify-between">
-                        <span className="text-white text-sm truncate">{user.name}</span>
-                        <button
-                          onClick={async () => {
-                            const encoder = new TextEncoder()
-                            const data = encoder.encode(JSON.stringify({ type: 'admin-admit', targetId: user.id }))
-                            await localParticipant.publishData(data, { reliable: true })
-                            setWaitingUsers(prev => prev.filter(u => u.id !== user.id))
-                          }}
-                          className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 text-xs rounded transition"
-                        >
-                          سماح
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
               <div className="space-y-2">
                 <div className="bg-gray-800 p-3 rounded-lg">
                   <div className="flex items-center justify-between">
@@ -1443,7 +1360,7 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
                 <Users className="w-5 h-5" />
                 {!isMobile && <span>المشاركون ({participants.length + 1})</span>}
                 {raisedHands.length > 0 && (
-                  <span className="absolute -top-1 -right-1 bg-yellow-500 text-yellow-900 text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                  <span className="absolute -top-1 -right-1 bg-yellow-500 text-yellow-900 text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center border-2 border-gray-900 z-10">
                     {raisedHands.length}
                   </span>
                 )}
