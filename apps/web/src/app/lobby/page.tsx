@@ -20,6 +20,22 @@ function LobbyContent() {
   const [isJoining, setIsJoining] = useState(false)
   const [room, setRoom] = useState<any>(null)
   const [error, setError] = useState('')
+  const [registeredName, setRegisteredName] = useState('')
+
+  useEffect(() => {
+    // Try to get the user's registered name from local storage
+    const userInfoStr = localStorage.getItem('userInfo')
+    if (userInfoStr) {
+      try {
+        const userInfo = JSON.parse(userInfoStr)
+        if (userInfo.name) {
+          setRegisteredName(userInfo.name)
+        }
+      } catch (e) {
+        console.error('Failed to parse userInfo from localStorage:', e)
+      }
+    }
+  }, [])
 
   useEffect(() => {
     if (roomId) {
@@ -35,12 +51,17 @@ function LobbyContent() {
     setIsJoining(true)
     try {
       const response = await roomApi.joinRoom(roomId, { userName: userName.trim() })
-      
+
       // Get the actual user ID from participants
       const currentUser = response.participants.find(p => p.displayName === userName.trim())
       const actualUserId = currentUser?.userId || response.roomInfo.hostId
-      
-      router.push(`/room/${roomId}?token=${response.livekitToken}&userId=${actualUserId}&userName=${encodeURIComponent(userName.trim())}&userRole=${response.userRole}`)
+
+      // Combine registered name and entered name if registered name exists
+      const finalName = registeredName
+        ? `${registeredName} - ${userName.trim()}`
+        : userName.trim()
+
+      router.push(`/room/${roomId}?token=${response.livekitToken}&userId=${actualUserId}&userName=${encodeURIComponent(finalName)}&userRole=${response.userRole}`)
     } catch (err: any) {
       setError(err.response?.data?.message || 'فشل الانضمام للغرفة')
       setIsJoining(false)

@@ -4,7 +4,7 @@ import './globals.css'
 import '@livekit/components-styles'
 import { Providers } from '@/components/providers'
 
-const cairo = Cairo({ 
+const cairo = Cairo({
   subsets: ['arabic', 'latin'],
   weight: ['400', '600', '700'],
 })
@@ -21,7 +21,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="ar" dir="rtl" suppressHydrationWarning>
-      <body className={cairo.className}>
+      <body className={cairo.className} suppressHydrationWarning>
         <Providers>
           {children}
         </Providers>

@@ -19,6 +19,7 @@ import { useRoomStore } from '@/store/room-store'
 import { getSocket } from '@/lib/socket'
 import type { ChatMessage } from '@arabic-meet/shared'
 import { LocalRecordingService } from '@/lib/local-recording'
+import { Watermark } from './ui/watermark'
 
 interface CustomVideoConferenceProps {
   userRole: UserRole
@@ -29,7 +30,7 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
   const { localParticipant } = useLocalParticipant()
   const room = useRoomContext()
   const [handRaised, setHandRaised] = useState(false)
-  const [raisedHands, setRaisedHands] = useState<Set<string>>(new Set())
+  const [raisedHands, setRaisedHands] = useState<string[]>([])
   const [pinnedParticipantIds, setPinnedParticipantIds] = useState<string[]>([])
   const [layoutMode, setLayoutMode] = useState<'grid' | 'spotlight' | 'dual'>('grid')
   const [showParticipants, setShowParticipants] = useState(false)
@@ -46,6 +47,12 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
   const [compactMode, setCompactMode] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
   const [isRecording, setIsRecording] = useState(false)
+
+  // Advanced Admin Controls State
+  const isAdmin = userRole === UserRole.ADMIN || userRole === UserRole.HOST || userRole === UserRole.COHOST
+  const [globalHardMute, setGlobalHardMute] = useState(false)
+  const [isWaitingAdmin, setIsWaitingAdmin] = useState(!isAdmin)
+  const [waitingUsers, setWaitingUsers] = useState<{ id: string, name: string }[]>([])
   const [recordingId, setRecordingId] = useState<string | null>(null)
   const [recordingDuration, setRecordingDuration] = useState(0)
   const [localRecorder] = useState(() => new LocalRecordingService())
@@ -62,7 +69,54 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
     { onlySubscribed: false }
   )
 
-  const isAdmin = userRole === UserRole.ADMIN || userRole === UserRole.HOST || userRole === UserRole.COHOST
+  // Waiting Room Logic: Auto-disable AV for waiting users and notify admins
+  useEffect(() => {
+    if (isWaitingAdmin && room && localParticipant) {
+      // Ensure AV is disabled while in waiting room
+      localParticipant.setMicrophoneEnabled(false)
+      localParticipant.setCameraEnabled(false)
+
+      const notifyInterval = setInterval(() => {
+        const encoder = new TextEncoder()
+        const data = encoder.encode(JSON.stringify({
+          type: 'user-waiting',
+          targetId: localParticipant.identity,
+          name: userName || localParticipant.name || localParticipant.identity
+        }))
+        localParticipant.publishData(data, { reliable: true })
+      }, 3000) // Send periodically until admitted
+
+      return () => clearInterval(notifyInterval)
+    }
+  }, [isWaitingAdmin, room, localParticipant, userName])
+
+  // Hard Mute Logic: Prevent unmuting if locked
+  useEffect(() => {
+    if (globalHardMute && !isAdmin && room && localParticipant) {
+      const handleTrackUnmuted = (publication: any) => {
+        if (publication.source === Track.Source.Microphone) {
+          // Immediately disable it again
+          localParticipant.setMicrophoneEnabled(false)
+          alert('الميكروفون مغلق من قبل مدير الاجتماع.')
+        }
+      }
+      localParticipant.on('localTrackUnpublished', handleTrackUnmuted)
+      localParticipant.on('trackUnmuted', handleTrackUnmuted)
+
+      // Also check periodically just in case
+      const interval = setInterval(() => {
+        if (localParticipant.isMicrophoneEnabled) {
+          localParticipant.setMicrophoneEnabled(false)
+        }
+      }, 500)
+
+      return () => {
+        localParticipant.off('localTrackUnpublished', handleTrackUnmuted)
+        localParticipant.off('trackUnmuted', handleTrackUnmuted)
+        clearInterval(interval)
+      }
+    }
+  }, [globalHardMute, isAdmin, room, localParticipant])
 
   // Auto-enable compact mode for many participants
   useEffect(() => {
@@ -76,7 +130,7 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
     const checkMobile = () => {
       const mobile = window.innerWidth < 768
       setIsMobile(mobile)
-      
+
       // Auto-close sidebars on mobile when switching
       if (mobile) {
         if (showChat || showSettings || showNetworkStats || showParticipants) {
@@ -84,17 +138,17 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
         }
       }
     }
-    
+
     checkMobile()
     window.addEventListener('resize', checkMobile)
-    
+
     return () => window.removeEventListener('resize', checkMobile)
   }, [])
 
   // WebSocket chat integration
   useEffect(() => {
     const socket = getSocket()
-    
+
     const handleChatMessage = (message: ChatMessage) => {
       addChatMessage(message)
       if (!showChat) {
@@ -153,11 +207,11 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId }),
       })
-      
+
       if (res.ok) {
         const recording = await res.json()
         setRecordingId(recording.id)
-        
+
         // Start local recording
         try {
           const roomElement = document.querySelector('.lk-video-conference')
@@ -185,7 +239,7 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
   const handleStopRecording = async () => {
     if (!recordingId || !userId) return
     if (!confirm('هل تريد إيقاف التسجيل؟')) return
-    
+
     try {
       // Check if recording is actually active
       if (!localRecorder.isRecording()) {
@@ -200,7 +254,7 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
       setIsRecording(false)
       const fileSizeMB = (blob.size / 1024 / 1024).toFixed(2)
       console.log(`📹 Recording stopped, size: ${fileSizeMB} MB`)
-      
+
       // Check file size (max 500MB)
       if (blob.size > 500 * 1024 * 1024) {
         alert(`⚠️ حجم الملف كبير جداً (${fileSizeMB} MB)!\nالحد الأقصى: 500 MB\nحاول تسجيل فترة أقصر.`)
@@ -208,19 +262,19 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
         setRecordingDuration(0)
         return
       }
-      
+
       // Update recording status in database
       const res = await fetch(`${API_BASE}/recordings/stop/${recordingId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId }),
       })
-      
+
       if (res.ok) {
         // Upload recording file
         alert(`⏳ جاري رفع الملف (${fileSizeMB} MB)...\nقد يستغرق بضع دقائق، لا تغلق المتصفح!`)
         console.log('⏳ Uploading recording...')
-        
+
         try {
           await localRecorder.uploadRecording(recordingId, blob, API_BASE)
           setRecordingId(null)
@@ -245,9 +299,12 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
     if (!room) return
 
     const updateParticipantState = (participant: RemoteParticipant | LocalParticipant) => {
+      // Guard against disconnected or missing participants
+      if (!participant || !participant.identity) return
+
       const micTrack = participant.getTrackPublication(Track.Source.Microphone)
       const cameraTrack = participant.getTrackPublication(Track.Source.Camera)
-      
+
       setParticipantStates(prev => ({
         ...prev,
         [participant.identity]: {
@@ -284,6 +341,17 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
       participant.on('trackUnmuted', handleTrackUnmuted)
     })
 
+    room.on('participantDisconnected', (participant: RemoteParticipant) => {
+      setParticipantStates(prev => {
+        const newState = { ...prev }
+        delete newState[participant.identity]
+        return newState
+      })
+
+      setRaisedHands(prev => prev.filter(id => id !== participant.identity))
+      setPinnedParticipantIds(prev => prev.filter(id => id !== participant.identity))
+    })
+
     return () => {
       participants.forEach(participant => {
         participant.off('trackMuted', handleTrackMuted)
@@ -298,7 +366,7 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
   const toggleHandRaise = async () => {
     const newState = !handRaised
     setHandRaised(newState)
-    
+
     const encoder = new TextEncoder()
     const data = encoder.encode(JSON.stringify({
       type: 'hand-raise',
@@ -321,13 +389,13 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
 
       if (data.type === 'hand-raise') {
         setRaisedHands(prev => {
-          const newSet = new Set(prev)
           if (data.raised) {
-            newSet.add(data.participantId)
+            // Add to the end of the queue if not already present
+            return prev.includes(data.participantId) ? prev : [...prev, data.participantId]
           } else {
-            newSet.delete(data.participantId)
+            // Remove from the queue
+            return prev.filter(id => id !== data.participantId)
           }
-          return newSet
         })
       }
     }
@@ -344,16 +412,16 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
 
     const updateNetworkQuality = (participant: RemoteParticipant | LocalParticipant) => {
       const identity = participant.identity
-      
+
       // Get connection quality from LiveKit
       const connectionQuality = participant.connectionQuality
-      
+
       let quality: 'excellent' | 'good' | 'poor' | 'unknown' = 'unknown'
-      
+
       if (connectionQuality === 'excellent') quality = 'excellent'
       else if (connectionQuality === 'good') quality = 'good'
       else if (connectionQuality === 'poor') quality = 'poor'
-      
+
       setNetworkQuality(prev => ({
         ...prev,
         [identity]: { quality }
@@ -362,7 +430,7 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
 
     // Monitor local participant
     updateNetworkQuality(localParticipant)
-    
+
     // Monitor remote participants
     participants.forEach(updateNetworkQuality)
 
@@ -426,6 +494,16 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
     await localParticipant.publishData(data, { reliable: true })
   }
 
+  const lowerParticipantHand = async (participantId: string) => {
+    if (!isAdmin) return
+    const encoder = new TextEncoder()
+    const data = encoder.encode(JSON.stringify({ type: 'admin-lower-hand', targetId: participantId }))
+    await localParticipant.publishData(data, { reliable: true })
+
+    // Optimistically update UI locally
+    setRaisedHands(prev => prev.filter(id => id !== participantId))
+  }
+
   // Apply quality settings to local tracks
   const applyQualitySettings = async () => {
     try {
@@ -436,9 +514,9 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
         '720p': { width: 1280, height: 720 },
         '1080p': { width: 1920, height: 1080 }
       }
-      
+
       const resolution = resolutions[videoQuality]
-      
+
       // Update video track constraints
       const videoTrack = localParticipant.videoTrackPublications.values().next().value?.track
       if (videoTrack) {
@@ -448,10 +526,10 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
           frameRate: videoFps,
         })
       }
-      
+
       // Note: LiveKit handles bitrate automatically based on resolution and network conditions
       // You can set preferred encoding parameters when creating the room connection
-      
+
       alert(`تم تطبيق الإعدادات:\n- الدقة: ${videoQuality}\n- FPS: ${videoFps}\n- فيديو: ${videoBitrate} kbps\n- صوت: ${audioBitrate} kbps`)
     } catch (error) {
       console.error('Error applying quality settings:', error)
@@ -489,6 +567,29 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
         await room?.disconnect()
         alert('تم طردك من الغرفة من قبل المسؤول')
         router.push('/')
+      } else if (data.type === 'admin-lower-hand') {
+        setHandRaised(false)
+        setRaisedHands(prev => prev.filter(id => id !== localParticipant.identity))
+      } else if (data.type === 'admin-lock-mics') {
+        setGlobalHardMute(data.locked)
+        if (data.locked && !isAdmin) {
+          await localParticipant.setMicrophoneEnabled(false)
+        }
+      } else if (data.type === 'admin-force-pin') {
+        setPinnedParticipantIds([data.targetId])
+        setLayoutMode('spotlight')
+      } else if (data.type === 'admin-force-unpin') {
+        setPinnedParticipantIds([])
+        setLayoutMode('grid')
+      } else if (data.type === 'admin-admit' && isWaitingAdmin) {
+        setIsWaitingAdmin(false)
+      } else if (data.type === 'user-waiting' && isAdmin) {
+        setWaitingUsers(prev => {
+          if (!prev.find(u => u.id === data.targetId)) {
+            return [...prev, { id: data.targetId, name: data.name }]
+          }
+          return prev
+        })
       }
     }
 
@@ -525,27 +626,27 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
   const pinnedTracks = pinnedParticipantIds
     .map(id => tracks.find(t => t.participant.identity === id))
     .filter(Boolean) as any[]
-  
+
   // Main track(s) based on layout mode
-  const mainTracks = screenShareTrack 
-    ? [screenShareTrack] 
-    : layoutMode === 'grid' 
-    ? [] 
-    : pinnedTracks.length > 0 
-    ? pinnedTracks 
-    : []
-  
+  const mainTracks = screenShareTrack
+    ? [screenShareTrack]
+    : layoutMode === 'grid'
+      ? []
+      : pinnedTracks.length > 0
+        ? pinnedTracks
+        : []
+
   const otherTracks = mainTracks.length > 0
     ? tracks.filter(t => {
-        const trackId = t.participant.identity
-        return !mainTracks.some(mt => mt && mt.participant.identity === trackId)
-      })
+      const trackId = t.participant.identity
+      return !mainTracks.some(mt => mt && mt.participant.identity === trackId)
+    })
     : []
 
   // Professional grid layout calculation (like Google Meet/Zoom)
   const getGridLayout = () => {
     const count = tracks.length
-    
+
     // Calculate optimal rows and columns
     if (count === 1) return { cols: 1, rows: 1, class: 'grid-cols-1' }
     if (count === 2) return { cols: 2, rows: 1, class: 'grid-cols-2' }
@@ -564,12 +665,13 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
   const renderVideoTile = (trackRef: any, isLarge = false, isSidebar = false) => {
     const participant = trackRef.participant
     const isLocal = participant instanceof LocalParticipant
-    const hasRaisedHand = raisedHands.has(participant.identity)
+    const hasRaisedHand = raisedHands.includes(participant.identity)
+    const raisedHandIndex = raisedHands.indexOf(participant.identity) + 1 // 1-based index
     const isPinned = pinnedParticipantIds.includes(participant.identity)
     const isScreenShare = trackRef.publication?.source === Track.Source.ScreenShare
     const deviceState = participantStates[participant.identity] || { micEnabled: false, cameraEnabled: false }
     const quality = networkQuality[participant.identity]?.quality || 'unknown'
-    
+
     // Network quality icon and color
     const getQualityIcon = () => {
       switch (quality) {
@@ -579,7 +681,7 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
         default: return <Signal className="w-4 h-4" />
       }
     }
-    
+
     const getQualityColor = () => {
       switch (quality) {
         case 'excellent': return 'text-green-500'
@@ -590,21 +692,20 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
     }
 
     return (
-      <div 
-        key={trackRef.publication?.trackSid || participant.identity} 
-        className={`relative bg-gray-800 rounded-md overflow-hidden group ${
-          isLarge 
-            ? 'w-full h-full' 
-            : isSidebar
+      <div
+        key={trackRef.publication?.trackSid || participant.identity}
+        className={`relative bg-gray-800 rounded-md overflow-hidden group ${isLarge
+          ? 'w-full h-full'
+          : isSidebar
             ? 'w-full flex-shrink-0'
             : 'w-full h-full flex items-center justify-center'
-        }`}
+          }`}
         style={
-          isLarge 
-            ? {} 
-            : isSidebar 
-            ? { aspectRatio: '16/9', minHeight: '140px' }
-            : { aspectRatio: '16/9' }
+          isLarge
+            ? {}
+            : isSidebar
+              ? { aspectRatio: '16/9', minHeight: '140px' }
+              : { aspectRatio: '16/9' }
         }
       >
         <div className="absolute inset-0">
@@ -612,7 +713,7 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
             <ParticipantTile />
           </TrackRefContext.Provider>
         </div>
-        
+
         {/* Screen share indicator */}
         {isScreenShare && (
           <div className="absolute top-2 left-1/2 transform -translate-x-1/2 bg-blue-600 text-white px-3 py-1.5 rounded-lg shadow-lg z-20 flex items-center gap-2 text-sm">
@@ -644,26 +745,25 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
         {!isScreenShare && !compactMode && (
           <div className="absolute top-2 right-2 flex gap-1 z-20 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
             {hasRaisedHand && (
-              <div className="bg-yellow-500 p-1.5 rounded-full">
-                <Hand className="w-4 h-4 text-white" />
+              <div className="bg-yellow-500 p-1.5 rounded-full flex items-center justify-center gap-1">
+                <span className="text-yellow-900 text-xs font-bold leading-none">{raisedHandIndex}</span>
+                <Hand className="w-4 h-4 text-yellow-900" />
               </div>
             )}
-            
+
             {isAdmin && !isLocal ? (
               <>
                 <button
                   onClick={() => participant instanceof RemoteParticipant && muteParticipant(participant)}
-                  className={`p-1.5 rounded-full transition ${
-                    deviceState.micEnabled ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600'
-                  }`}
+                  className={`p-1.5 rounded-full transition ${deviceState.micEnabled ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600'
+                    }`}
                 >
                   {deviceState.micEnabled ? <Mic className="w-4 h-4 text-white" /> : <MicOff className="w-4 h-4 text-white" />}
                 </button>
                 <button
                   onClick={() => participant instanceof RemoteParticipant && disableCamera(participant)}
-                  className={`p-1.5 rounded-full transition ${
-                    deviceState.cameraEnabled ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600'
-                  }`}
+                  className={`p-1.5 rounded-full transition ${deviceState.cameraEnabled ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600'
+                    }`}
                 >
                   {deviceState.cameraEnabled ? <Video className="w-4 h-4 text-white" /> : <VideoOff className="w-4 h-4 text-white" />}
                 </button>
@@ -684,7 +784,12 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
         {/* Compact mode indicators */}
         {compactMode && !isScreenShare && (
           <div className="absolute top-1 right-1 flex gap-0.5 z-20">
-            {hasRaisedHand && <div className="bg-yellow-500 p-0.5 rounded"><Hand className="w-3 h-3 text-white" /></div>}
+            {hasRaisedHand && (
+              <div className="bg-yellow-500 p-0.5 rounded flex items-center gap-0.5">
+                <span className="text-yellow-900 text-[10px] font-bold leading-none pl-0.5">{raisedHandIndex}</span>
+                <Hand className="w-3 h-3 text-yellow-900" />
+              </div>
+            )}
             {!deviceState.micEnabled && <div className="bg-red-600 p-0.5 rounded"><MicOff className="w-3 h-3 text-white" /></div>}
             {!deviceState.cameraEnabled && <div className="bg-red-600 p-0.5 rounded"><VideoOff className="w-3 h-3 text-white" /></div>}
           </div>
@@ -701,10 +806,33 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
         )}
 
         {/* Participant name */}
-        <div className={`absolute bottom-1 left-1 right-1 bg-gradient-to-t from-black/80 to-transparent text-white rounded-b z-10 ${
-          compactMode ? 'px-1.5 py-0.5 text-xs' : 'px-2 py-1 text-sm'
-        }`}>
+        <div className={`absolute bottom-1 left-1 right-1 bg-gradient-to-t from-black/80 to-transparent text-white rounded-b z-10 ${compactMode ? 'px-1.5 py-0.5 text-xs' : 'px-2 py-1 text-sm'
+          }`}>
           <div className="truncate font-medium">{participant.name || participant.identity}</div>
+        </div>
+      </div>
+    )
+  }
+
+  if (isWaitingAdmin) {
+    return (
+      <div className="flex flex-col h-screen w-screen bg-gray-950 items-center justify-center relative">
+        {userName && userId && <Watermark text={`${userName} - ${userId}`} />}
+        <div className="bg-gray-900 border border-gray-800 p-8 rounded-2xl text-center max-w-md w-full shadow-2xl z-10">
+          <div className="w-16 h-16 bg-blue-600/20 rounded-full flex items-center justify-center mx-auto mb-6">
+            <Users className="w-8 h-8 text-blue-500" />
+          </div>
+          <h2 className="text-2xl font-bold text-white mb-3">غرفة الانتظار</h2>
+          <p className="text-gray-400 mb-6 font-medium leading-relaxed">
+            يرجى الانتظار، سيسمح لك مدير الاجتماع بالدخول قريباً...
+          </p>
+          <div className="flex justify-center">
+            <div className="flex gap-2">
+              <div className="w-3 h-3 bg-blue-600 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+              <div className="w-3 h-3 bg-blue-600 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+              <div className="w-3 h-3 bg-blue-600 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+            </div>
+          </div>
         </div>
       </div>
     )
@@ -714,11 +842,11 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
     <div className="flex flex-col h-screen w-screen bg-gray-950">
       {/* Video Layout */}
       <div className="flex-1 flex overflow-hidden relative">
+        {userName && <Watermark text={userName} />}
         {/* Chat Sidebar */}
         {showChat && (
-          <div className={`absolute top-0 left-0 h-full bg-gray-900/95 backdrop-blur border-r border-gray-700 z-30 shadow-2xl ${
-            isMobile ? 'w-full' : 'w-96'
-          }`}>
+          <div className={`absolute top-0 left-0 h-full bg-gray-900/95 backdrop-blur border-r border-gray-700 z-30 shadow-2xl ${isMobile ? 'w-full' : 'w-96'
+            }`}>
             <div className="h-full flex flex-col">
               <div className="flex items-center justify-between p-4 border-b border-gray-700">
                 <h3 className="text-white font-semibold">الدردشة</h3>
@@ -733,9 +861,8 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
 
         {/* Network Stats Sidebar */}
         {showNetworkStats && (
-          <div className={`absolute top-0 right-0 h-full bg-gray-900/95 backdrop-blur border-l border-gray-700 z-30 overflow-y-auto shadow-2xl ${
-            isMobile ? 'w-full' : 'w-96'
-          }`}>
+          <div className={`absolute top-0 right-0 h-full bg-gray-900/95 backdrop-blur border-l border-gray-700 z-30 overflow-y-auto shadow-2xl ${isMobile ? 'w-full' : 'w-96'
+            }`}>
             <div className="p-4">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-white font-semibold flex items-center gap-2">
@@ -744,7 +871,7 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
                 </h3>
                 <button onClick={() => setShowNetworkStats(false)} className="text-gray-400 hover:text-white text-xl">✕</button>
               </div>
-              
+
               <div className="space-y-3">
                 {/* Local Participant */}
                 <div className="bg-gray-800 p-3 rounded-lg">
@@ -759,9 +886,9 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
                       {networkQuality[localParticipant.identity]?.quality === 'poor' && <SignalLow className="w-4 h-4" />}
                       {!networkQuality[localParticipant.identity] && <Signal className="w-4 h-4" />}
                       <span className="text-xs font-medium">
-                        {networkQuality[localParticipant.identity]?.quality === 'excellent' ? 'ممتاز' : 
-                         networkQuality[localParticipant.identity]?.quality === 'good' ? 'جيد' : 
-                         networkQuality[localParticipant.identity]?.quality === 'poor' ? 'ضعيف' : 'غير معروف'}
+                        {networkQuality[localParticipant.identity]?.quality === 'excellent' ? 'ممتاز' :
+                          networkQuality[localParticipant.identity]?.quality === 'good' ? 'جيد' :
+                            networkQuality[localParticipant.identity]?.quality === 'poor' ? 'ضعيف' : 'غير معروف'}
                       </span>
                     </div>
                   </div>
@@ -813,9 +940,8 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
 
         {/* Settings Sidebar */}
         {showSettings && (
-          <div className={`absolute top-0 right-0 h-full bg-gray-900/95 backdrop-blur border-l border-gray-700 z-30 overflow-y-auto shadow-2xl ${
-            isMobile ? 'w-full' : 'w-96'
-          }`}>
+          <div className={`absolute top-0 right-0 h-full bg-gray-900/95 backdrop-blur border-l border-gray-700 z-30 overflow-y-auto shadow-2xl ${isMobile ? 'w-full' : 'w-96'
+            }`}>
             <div className="p-4">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-white font-semibold flex items-center gap-2">
@@ -824,7 +950,7 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
                 </h3>
                 <button onClick={() => setShowSettings(false)} className="text-gray-400 hover:text-white text-xl">✕</button>
               </div>
-              
+
               <div className="space-y-6">
                 {/* Video Quality Section */}
                 <div className="bg-gray-800 p-4 rounded-lg">
@@ -832,7 +958,7 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
                     <Video className="w-4 h-4" />
                     جودة الفيديو
                   </h4>
-                  
+
                   {/* Resolution */}
                   <div className="mb-4">
                     <label className="text-gray-300 text-sm mb-2 block">الدقة (Resolution)</label>
@@ -859,11 +985,10 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
                         <button
                           key={fps}
                           onClick={() => setVideoFps(fps as any)}
-                          className={`px-3 py-2 rounded text-sm font-medium transition ${
-                            videoFps === fps 
-                              ? 'bg-blue-600 text-white' 
-                              : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-                          }`}
+                          className={`px-3 py-2 rounded text-sm font-medium transition ${videoFps === fps
+                            ? 'bg-blue-600 text-white'
+                            : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                            }`}
                         >
                           {fps}
                         </button>
@@ -899,7 +1024,7 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
                     <Mic className="w-4 h-4" />
                     جودة الصوت
                   </h4>
-                  
+
                   {/* Audio Bitrate */}
                   <div>
                     <label className="text-gray-300 text-sm mb-2 block">
@@ -988,9 +1113,8 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
 
         {/* Participants Sidebar */}
         {isAdmin && showParticipants && (
-          <div className={`absolute top-0 right-0 h-full bg-gray-900/95 backdrop-blur border-l border-gray-700 z-30 overflow-y-auto shadow-2xl ${
-            isMobile ? 'w-full' : 'w-80'
-          }`}>
+          <div className={`absolute top-0 right-0 h-full bg-gray-900/95 backdrop-blur border-l border-gray-700 z-30 overflow-y-auto shadow-2xl ${isMobile ? 'w-full' : 'w-80'
+            }`}>
             <div className="p-4">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-white font-semibold flex items-center gap-2">
@@ -999,7 +1123,50 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
                 </h3>
                 <button onClick={() => setShowParticipants(false)} className="text-gray-400 hover:text-white text-xl">✕</button>
               </div>
-              
+
+              {/* Advanced Admin Controls Header */}
+              <div className="bg-gray-800 p-3 rounded-lg mb-4 flex items-center justify-between">
+                <div className="text-sm text-white font-medium flex-1">كتم إجباري للجميع</div>
+                <button
+                  onClick={async () => {
+                    const newStatus = !globalHardMute
+                    setGlobalHardMute(newStatus)
+                    const encoder = new TextEncoder()
+                    const data = encoder.encode(JSON.stringify({ type: 'admin-lock-mics', locked: newStatus }))
+                    await localParticipant.publishData(data, { reliable: true })
+                  }}
+                  className={`w-12 h-6 rounded-full relative transition-colors ${globalHardMute ? 'bg-red-600' : 'bg-gray-600'}`}
+                  title={globalHardMute ? "إلغاء الكتم الإجباري" : "تفعيل الكتم الإجباري"}
+                >
+                  <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${globalHardMute ? 'left-1' : 'left-7'}`} />
+                </button>
+              </div>
+
+              {/* Waiting Users List */}
+              {waitingUsers.length > 0 && (
+                <div className="mb-4">
+                  <h4 className="text-gray-400 text-xs font-semibold uppercase mb-2">في الانتظار ({waitingUsers.length})</h4>
+                  <div className="space-y-2">
+                    {waitingUsers.map(user => (
+                      <div key={user.id} className="bg-gray-800/50 border border-gray-700 p-3 rounded-lg flex items-center justify-between">
+                        <span className="text-white text-sm truncate">{user.name}</span>
+                        <button
+                          onClick={async () => {
+                            const encoder = new TextEncoder()
+                            const data = encoder.encode(JSON.stringify({ type: 'admin-admit', targetId: user.id }))
+                            await localParticipant.publishData(data, { reliable: true })
+                            setWaitingUsers(prev => prev.filter(u => u.id !== user.id))
+                          }}
+                          className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 text-xs rounded transition"
+                        >
+                          سماح
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <div className="space-y-2">
                 <div className="bg-gray-800 p-3 rounded-lg">
                   <div className="flex items-center justify-between">
@@ -1007,16 +1174,23 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
                       <div className="w-2 h-2 bg-green-500 rounded-full"></div>
                       <span className="text-white text-sm">{localParticipant.name || localParticipant.identity}</span>
                       <span className="text-xs text-blue-400">(أنت)</span>
+                      {raisedHands.includes(localParticipant.identity) && (
+                        <div className="flex items-center justify-center bg-yellow-500 w-5 h-5 rounded-full">
+                          <span className="text-yellow-900 text-xs font-bold leading-none">
+                            {raisedHands.indexOf(localParticipant.identity) + 1}
+                          </span>
+                        </div>
+                      )}
                     </div>
                     <div className="flex gap-1">
-                      {participantStates[localParticipant.identity]?.micEnabled ? 
+                      {participantStates[localParticipant.identity]?.micEnabled ?
                         <Mic className="w-4 h-4 text-green-500" /> : <MicOff className="w-4 h-4 text-red-500" />}
-                      {participantStates[localParticipant.identity]?.cameraEnabled ? 
+                      {participantStates[localParticipant.identity]?.cameraEnabled ?
                         <Video className="w-4 h-4 text-green-500" /> : <VideoOff className="w-4 h-4 text-red-500" />}
                     </div>
                   </div>
                 </div>
-                
+
                 {participants.map((participant) => {
                   const deviceState = participantStates[participant.identity] || { micEnabled: false, cameraEnabled: false }
                   return (
@@ -1025,6 +1199,13 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
                         <div className="flex items-center gap-2 flex-1 min-w-0">
                           <div className="w-2 h-2 bg-green-500 rounded-full flex-shrink-0"></div>
                           <span className="text-white text-sm truncate">{participant.name || participant.identity}</span>
+                          {raisedHands.includes(participant.identity) && (
+                            <div className="flex items-center justify-center bg-yellow-500 w-5 h-5 rounded-full flex-shrink-0">
+                              <span className="text-yellow-900 text-xs font-bold leading-none">
+                                {raisedHands.indexOf(participant.identity) + 1}
+                              </span>
+                            </div>
+                          )}
                         </div>
                         <div className="flex items-center gap-2 flex-shrink-0">
                           <div className="flex gap-1">
@@ -1032,8 +1213,38 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
                             {deviceState.cameraEnabled ? <Video className="w-4 h-4 text-green-500" /> : <VideoOff className="w-4 h-4 text-red-500" />}
                           </div>
                           <button
+                            onClick={async () => {
+                              const encoder = new TextEncoder()
+                              if (pinnedParticipantIds.includes(participant.identity)) {
+                                const data = encoder.encode(JSON.stringify({ type: 'admin-force-unpin' }))
+                                await localParticipant.publishData(data, { reliable: true })
+                                setPinnedParticipantIds([])
+                                setLayoutMode('grid')
+                              } else {
+                                const data = encoder.encode(JSON.stringify({ type: 'admin-force-pin', targetId: participant.identity }))
+                                await localParticipant.publishData(data, { reliable: true })
+                                setPinnedParticipantIds([participant.identity])
+                                setLayoutMode('spotlight')
+                              }
+                            }}
+                            className={`${pinnedParticipantIds.includes(participant.identity) ? 'bg-blue-600 hover:bg-blue-700' : 'bg-gray-700 hover:bg-gray-600'} text-white p-1.5 rounded transition`}
+                            title={pinnedParticipantIds.includes(participant.identity) ? "إلغاء المتحدث الرئيسي للجميع" : "تعيين كمتحدث رئيسي للجميع"}
+                          >
+                            <Pin className="w-4 h-4" />
+                          </button>
+                          {raisedHands.includes(participant.identity) && (
+                            <button
+                              onClick={() => lowerParticipantHand(participant.identity)}
+                              className="bg-yellow-600 hover:bg-yellow-700 text-white p-1.5 rounded transition"
+                              title="خفض اليد"
+                            >
+                              <Hand className="w-4 h-4 fill-current rotate-180" />
+                            </button>
+                          )}
+                          <button
                             onClick={() => confirm(`هل تريد طرد ${participant.name || participant.identity}؟`) && kickParticipant(participant.identity)}
                             className="bg-red-600 hover:bg-red-700 text-white p-1.5 rounded transition"
+                            title="طرد المشارك"
                           >
                             <UserX className="w-4 h-4" />
                           </button>
@@ -1050,16 +1261,15 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
         {mainTracks.length > 0 ? (
           <div className="flex-1 flex gap-3 p-3">
             {/* Main video area - 1 or 2 large videos */}
-            <div className={`flex-1 flex gap-3 ${
-              mainTracks.length === 2 ? 'flex-col' : ''
-            }`}>
+            <div className={`flex-1 flex gap-3 ${mainTracks.length === 2 ? 'flex-col' : ''
+              }`}>
               {mainTracks.map(track => track && (
                 <div key={track.participant.identity} className="flex-1">
                   {renderVideoTile(track, true, false)}
                 </div>
               ))}
             </div>
-            
+
             {/* Sidebar with other participants */}
             {otherTracks.length > 0 && (
               <div className="w-80 flex flex-col gap-3 overflow-y-auto overflow-x-hidden pr-2 pb-2">
@@ -1068,9 +1278,9 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
             )}
           </div>
         ) : (
-          <div 
+          <div
             className={`w-full h-full p-3 grid ${gridLayout.class} gap-3 auto-rows-fr overflow-y-auto overflow-x-hidden`}
-            style={{ 
+            style={{
               gridAutoRows: `minmax(${compactMode ? '120px' : '180px'}, 1fr)`,
               alignContent: 'start'
             }}
@@ -1085,14 +1295,13 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
         <div className="flex items-center justify-between max-w-7xl mx-auto">
           <button
             onClick={handleLeave}
-            className={`flex items-center gap-2 rounded-lg bg-red-600 hover:bg-red-700 text-white transition font-medium ${
-              isMobile ? 'p-3' : 'px-4 py-2.5'
-            }`}
+            className={`flex items-center gap-2 rounded-lg bg-red-600 hover:bg-red-700 text-white transition font-medium ${isMobile ? 'p-3' : 'px-4 py-2.5'
+              }`}
           >
             <LogOut className="w-5 h-5" />
             {!isMobile && <span>خروج</span>}
           </button>
-          
+
           <div className="flex items-center gap-3">
             <ControlBar />
             {!isAdmin && (
@@ -1104,7 +1313,7 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
               </button>
             )}
           </div>
-          
+
           <div className="flex items-center gap-2">
             {/* Recording Controls - Admin Only */}
             {isAdmin && (
@@ -1143,9 +1352,8 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
                     setPinnedParticipantIds([])
                     setLayoutMode('grid')
                   }}
-                  className={`flex items-center gap-1.5 px-3 py-2 rounded transition text-sm font-medium ${
-                    layoutMode === 'grid' ? 'bg-blue-600 text-white' : 'text-gray-300 hover:bg-gray-700'
-                  }`}
+                  className={`flex items-center gap-1.5 px-3 py-2 rounded transition text-sm font-medium ${layoutMode === 'grid' ? 'bg-blue-600 text-white' : 'text-gray-300 hover:bg-gray-700'
+                    }`}
                   title="عرض الشبكة"
                 >
                   <LayoutGrid className="w-4 h-4" />
@@ -1158,9 +1366,8 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
                       setLayoutMode('spotlight')
                     }
                   }}
-                  className={`flex items-center gap-1.5 px-3 py-2 rounded transition text-sm font-medium ${
-                    layoutMode === 'spotlight' ? 'bg-blue-600 text-white' : 'text-gray-300 hover:bg-gray-700'
-                  }`}
+                  className={`flex items-center gap-1.5 px-3 py-2 rounded transition text-sm font-medium ${layoutMode === 'spotlight' ? 'bg-blue-600 text-white' : 'text-gray-300 hover:bg-gray-700'
+                    }`}
                   title="شاشة واحدة كبيرة"
                 >
                   <Square className="w-4 h-4" />
@@ -1169,9 +1376,8 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
                 {pinnedParticipantIds.length === 2 && (
                   <button
                     onClick={() => setLayoutMode('dual')}
-                    className={`flex items-center gap-1.5 px-3 py-2 rounded transition text-sm font-medium ${
-                      layoutMode === 'dual' ? 'bg-blue-600 text-white' : 'text-gray-300 hover:bg-gray-700'
-                    }`}
+                    className={`flex items-center gap-1.5 px-3 py-2 rounded transition text-sm font-medium ${layoutMode === 'dual' ? 'bg-blue-600 text-white' : 'text-gray-300 hover:bg-gray-700'
+                      }`}
                     title="شاشتين كبيرتين"
                   >
                     <Grid3x3 className="w-4 h-4" />
@@ -1184,9 +1390,8 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
             {/* Chat Button */}
             <button
               onClick={() => setShowChat(!showChat)}
-              className={`relative flex items-center gap-2 rounded-lg transition font-medium ${
-                showChat ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-gray-700 hover:bg-gray-600 text-white'
-              } ${isMobile ? 'p-3' : 'px-4 py-2.5'}`}
+              className={`relative flex items-center gap-2 rounded-lg transition font-medium ${showChat ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-gray-700 hover:bg-gray-600 text-white'
+                } ${isMobile ? 'p-3' : 'px-4 py-2.5'}`}
             >
               <MessageCircle className="w-5 h-5" />
               {!isMobile && <span>الدردشة</span>}
@@ -1200,9 +1405,8 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
             {tracks.length > 9 && (
               <button
                 onClick={() => setCompactMode(!compactMode)}
-                className={`flex items-center gap-2 px-3 py-2.5 rounded-lg transition text-sm font-medium ${
-                  compactMode ? 'bg-green-600 hover:bg-green-700 text-white' : 'bg-gray-700 hover:bg-gray-600 text-white'
-                }`}
+                className={`flex items-center gap-2 px-3 py-2.5 rounded-lg transition text-sm font-medium ${compactMode ? 'bg-green-600 hover:bg-green-700 text-white' : 'bg-gray-700 hover:bg-gray-600 text-white'
+                  }`}
               >
                 {compactMode ? <Grid3x3 className="w-4 h-4" /> : <LayoutGrid className="w-4 h-4" />}
                 <span className="hidden sm:inline">{compactMode ? 'عادي' : 'مضغوط'}</span>
@@ -1211,9 +1415,8 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
             {/* Settings Button */}
             <button
               onClick={() => setShowSettings(!showSettings)}
-              className={`flex items-center gap-2 rounded-lg transition text-sm font-medium ${
-                showSettings ? 'bg-purple-600 hover:bg-purple-700 text-white' : 'bg-gray-700 hover:bg-gray-600 text-white'
-              } ${isMobile ? 'p-3' : 'px-3 py-2.5'}`}
+              className={`flex items-center gap-2 rounded-lg transition text-sm font-medium ${showSettings ? 'bg-purple-600 hover:bg-purple-700 text-white' : 'bg-gray-700 hover:bg-gray-600 text-white'
+                } ${isMobile ? 'p-3' : 'px-3 py-2.5'}`}
               title="إعدادات الجودة"
             >
               <Settings className="w-4 h-4" />
@@ -1223,9 +1426,8 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
             {/* Network Stats Button */}
             <button
               onClick={() => setShowNetworkStats(!showNetworkStats)}
-              className={`flex items-center gap-2 rounded-lg transition text-sm font-medium ${
-                showNetworkStats ? 'bg-green-600 hover:bg-green-700 text-white' : 'bg-gray-700 hover:bg-gray-600 text-white'
-              } ${isMobile ? 'p-3' : 'px-3 py-2.5'}`}
+              className={`flex items-center gap-2 rounded-lg transition text-sm font-medium ${showNetworkStats ? 'bg-green-600 hover:bg-green-700 text-white' : 'bg-gray-700 hover:bg-gray-600 text-white'
+                } ${isMobile ? 'p-3' : 'px-3 py-2.5'}`}
               title="إحصائيات الشبكة"
             >
               <Wifi className="w-4 h-4" />
@@ -1235,12 +1437,16 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
             {isAdmin && (
               <button
                 onClick={() => setShowParticipants(!showParticipants)}
-                className={`flex items-center gap-2 rounded-lg transition font-medium ${
-                  showParticipants ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-gray-700 hover:bg-gray-600 text-white'
-                } ${isMobile ? 'p-3' : 'px-4 py-2.5'}`}
+                className={`relative flex items-center gap-2 rounded-lg transition font-medium ${showParticipants ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-gray-700 hover:bg-gray-600 text-white'
+                  } ${isMobile ? 'p-3' : 'px-4 py-2.5'}`}
               >
                 <Users className="w-5 h-5" />
                 {!isMobile && <span>المشاركون ({participants.length + 1})</span>}
+                {raisedHands.length > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-yellow-500 text-yellow-900 text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                    {raisedHands.length}
+                  </span>
+                )}
               </button>
             )}
           </div>
