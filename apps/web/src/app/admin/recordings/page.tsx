@@ -40,11 +40,25 @@ export default function RecordingsPage() {
   const limit = 20
 
   useEffect(() => {
-    const adminStr = localStorage.getItem('admin')
-    if (!adminStr) {
+    const token = localStorage.getItem('token')
+    const userStr = localStorage.getItem('userInfo')
+
+    if (!token || !userStr) {
       router.push('/admin/login')
       return
     }
+
+    try {
+      const user = JSON.parse(userStr)
+      if (user?.role !== 'admin') {
+        router.push('/dashboard')
+        return
+      }
+    } catch {
+      router.push('/admin/login')
+      return
+    }
+
     fetchRecordings()
   }, [page, router])
 
