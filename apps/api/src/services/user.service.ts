@@ -1,7 +1,10 @@
-import { Injectable, UnauthorizedException, ConflictException, NotFoundException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, ConflictException, NotFoundException, InternalServerErrorException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { UserEntity, UserRole } from '../entities/user.entity';
+import { ParticipantEntity } from '../entities/participant.entity';
+import { RoomMemberEntity } from '../entities/room-member.entity';
+import { RecordingEntity } from '../entities/recording.entity';
 import * as bcrypt from 'bcrypt';
 import * as jwt from 'jsonwebtoken';
 
@@ -10,6 +13,12 @@ export class UserService {
   constructor(
     @InjectRepository(UserEntity)
     private userRepository: Repository<UserEntity>,
+    @InjectRepository(ParticipantEntity)
+    private participantRepository: Repository<ParticipantEntity>,
+    @InjectRepository(RoomMemberEntity)
+    private roomMemberRepository: Repository<RoomMemberEntity>,
+    @InjectRepository(RecordingEntity)
+    private recordingRepository: Repository<RecordingEntity>,
   ) {}
 
   async login(username: string, password: string) {
@@ -180,8 +189,19 @@ export class UserService {
       throw new NotFoundException('المستخدم غير موجود');
     }
 
-    await this.userRepository.delete(id);
-    return { message: 'تم حذف المستخدم بنجاح' };
+    try {
+      await this.participantRepository.delete({ userId: id });
+      await this.roomMemberRepository.delete({ userId: id });
+      await this.recordingRepository.delete({ startedBy: id });
+      await this.userRepository.delete(id);
+      return { message: 'تم حذف المستخدم بنجاح' };
+    } catch (error: any) {
+      if (error?.code === '23503') {
+        throw new ConflictException('لا يمكن حذف المستخدم لوجود بيانات مرتبطة به');
+      }
+
+      throw new InternalServerErrorException('Internal server error');
+    }
   }
 
   async toggleUserStatus(id: string) {
