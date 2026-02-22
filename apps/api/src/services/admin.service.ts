@@ -158,6 +158,23 @@ export class AdminService {
     return room;
   }
 
+  async updateRoomMaxParticipants(id: string, maxParticipants: number) {
+    const room = await this.roomRepository.findOne({ where: { id } });
+    
+    if (!room) {
+      throw new NotFoundException(`Room with ID ${id} not found`);
+    }
+
+    if (maxParticipants < 2 || maxParticipants > 100) {
+      throw new Error('Max participants must be between 2 and 100');
+    }
+
+    room.maxParticipants = maxParticipants;
+    await this.roomRepository.save(room);
+
+    return room;
+  }
+
   async getAuditLogs(
     page: number = 1,
     limit: number = 50,

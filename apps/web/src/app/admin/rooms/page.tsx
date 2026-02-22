@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Trash2, ArrowLeft, Lock, Users, Unlock, Video, Plus, X } from 'lucide-react'
+import { Trash2, ArrowLeft, Lock, Users, Unlock, Video, Plus, X, Edit } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import Link from 'next/link'
@@ -16,12 +16,15 @@ const API_BASE = `${API_URL}/api`
 export default function RoomsManagement() {
   const [page, setPage] = useState(1)
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false)
+  const [selectedRoom, setSelectedRoom] = useState<any>(null)
   const [newRoom, setNewRoom] = useState({
     name: '',
     description: '',
     maxParticipants: 25,
     hostName: '',
   })
+  const [editMaxParticipants, setEditMaxParticipants] = useState(25)
   const queryClient = useQueryClient()
   const router = useRouter()
 
@@ -155,6 +158,44 @@ export default function RoomsManagement() {
     }
   }
 
+  const updateMaxParticipantsMutation = useMutation({
+    mutationFn: async ({ roomId, maxParticipants }: { roomId: string; maxParticipants: number }) => {
+      const res = await fetch(`${API_BASE}/admin/rooms/${roomId}/max-participants`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ maxParticipants }),
+      })
+      if (!res.ok) throw new Error('Failed to update max participants')
+      return res.json()
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-rooms'] })
+      setIsEditModalOpen(false)
+      setSelectedRoom(null)
+    },
+  })
+
+  const openEditModal = (room: any) => {
+    setSelectedRoom(room)
+    setEditMaxParticipants(room.maxParticipants)
+    setIsEditModalOpen(true)
+  }
+
+  const handleUpdateMaxParticipants = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!selectedRoom) return
+    
+    if (editMaxParticipants < 2 || editMaxParticipants > 100) {
+      alert('يجب أن يكون عدد الأعضاء بين 2 و 100')
+      return
+    }
+
+    await updateMaxParticipantsMutation.mutateAsync({
+      roomId: selectedRoom.id,
+      maxParticipants: editMaxParticipants,
+    })
+  }
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-8">
@@ -265,6 +306,78 @@ export default function RoomsManagement() {
         </div>
       )}
 
+      {/* Edit Max Participants Modal */}
+      {isEditModalOpen && selectedRoom && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-bold">تعديل عدد الأعضاء</h2>
+              <button
+                onClick={() => setIsEditModalOpen(false)}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <form onSubmit={handleUpdateMaxParticipants} className="space-y-4">
+              <div>
+                <Label>اسم الغرفة</Label>
+                <Input
+                  value={selectedRoom.name}
+                  disabled
+                  className="bg-gray-100"
+                />
+              </div>
+              <div>
+                <Label>العدد الحالي للأعضاء</Label>
+                <Input
+                  value={`${selectedRoom.totalParticipants} / ${selectedRoom.maxParticipants}`}
+                  disabled
+                  className="bg-gray-100"
+                />
+              </div>
+              <div>
+                <Label htmlFor="editMaxParticipants">الحد الأقصى الجديد للأعضاء *</Label>
+                <Input
+                  id="editMaxParticipants"
+                  type="number"
+                  value={editMaxParticipants}
+                  onChange={(e) => setEditMaxParticipants(parseInt(e.target.value) || 2)}
+                  min={2}
+                  max={100}
+                  required
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  يجب أن يكون بين 2 و 100 عضو
+                </p>
+              </div>
+              <div className="flex gap-3 pt-4">
+                <Button
+                  type="submit"
+                  className="flex-1 bg-blue-600 hover:bg-blue-700"
+                  disabled={updateMaxParticipantsMutation.isPending}
+                >
+                  {updateMaxParticipantsMutation.isPending ? 'جاري التحديث...' : 'تحديث'}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setIsEditModalOpen(false)}
+                  className="flex-1"
+                >
+                  إلغاء
+                </Button>
+              </div>
+              {updateMaxParticipantsMutation.isError && (
+                <p className="text-red-500 text-sm text-center">
+                  حدث خطأ في تحديث عدد الأعضاء
+                </p>
+              )}
+            </form>
+          </div>
+        </div>
+      )}
+
         <Card>
           <CardHeader>
             <CardTitle>قائمة الغرف ({data?.meta?.total || 0})</CardTitle>
@@ -327,6 +440,16 @@ export default function RoomsManagement() {
                     >
                       <Users className="h-4 w-4 ml-1" />
                       الأعضاء
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => openEditModal(room)}
+                      className="border-blue-500 text-blue-600 hover:bg-blue-50"
+                      title="تعديل عدد الأعضاء"
+                    >
+                      <Edit className="h-4 w-4 ml-1" />
+                      تعديل
                     </Button>
                     {room.isActive ? (
                       <Button

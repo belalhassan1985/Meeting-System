@@ -46,6 +46,14 @@ export class AdminController {
     return this.adminService.reopenRoom(id);
   }
 
+  @Patch('rooms/:id/max-participants')
+  async updateRoomMaxParticipants(
+    @Param('id') id: string,
+    @Body('maxParticipants') maxParticipants: number,
+  ) {
+    return this.adminService.updateRoomMaxParticipants(id, maxParticipants);
+  }
+
   @Get('audit-logs')
   async getAuditLogs(
     @Query('page') page: number = 1,
