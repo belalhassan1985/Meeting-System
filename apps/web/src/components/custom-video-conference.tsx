@@ -532,9 +532,27 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
       const decoder = new TextDecoder()
       const data = JSON.parse(decoder.decode(payload))
 
+      // Handle broadcast messages (no targetId required)
+      if (data.type === 'admin-lock-mics') {
+        setGlobalHardMute(data.locked)
+        if (data.locked && !isAdmin) {
+          await localParticipant.setMicrophoneEnabled(false)
+        }
+        return
+      } else if (data.type === 'admin-force-pin') {
+        setPinnedParticipantIds([data.targetId])
+        setLayoutMode('spotlight')
+        return
+      } else if (data.type === 'admin-force-unpin') {
+        setPinnedParticipantIds([])
+        setLayoutMode('grid')
+        return
+      }
+
+      // Handle targeted messages (targetId required)
       if (data.targetId !== localParticipant.identity) return
 
-      if (data.type === 'admin-mute') {
+      if (data.type === 'admin-mute' || data.type === 'admin-mute-mic') {
         await localParticipant.setMicrophoneEnabled(false)
       } else if (data.type === 'admin-disable-camera') {
         await localParticipant.setCameraEnabled(false)
@@ -548,17 +566,6 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
       } else if (data.type === 'admin-lower-hand') {
         setHandRaised(false)
         setRaisedHands(prev => prev.filter(id => id !== localParticipant.identity))
-      } else if (data.type === 'admin-lock-mics') {
-        setGlobalHardMute(data.locked)
-        if (data.locked && !isAdmin) {
-          await localParticipant.setMicrophoneEnabled(false)
-        }
-      } else if (data.type === 'admin-force-pin') {
-        setPinnedParticipantIds([data.targetId])
-        setLayoutMode('spotlight')
-      } else if (data.type === 'admin-force-unpin') {
-        setPinnedParticipantIds([])
-        setLayoutMode('grid')
       }
     }
 
@@ -1073,9 +1080,27 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
                   onClick={async () => {
                     const newStatus = !globalHardMute
                     setGlobalHardMute(newStatus)
+                    
+                    // Send message to all participants
                     const encoder = new TextEncoder()
                     const data = encoder.encode(JSON.stringify({ type: 'admin-lock-mics', locked: newStatus }))
                     await localParticipant.publishData(data, { reliable: true })
+                    
+                    // If enabling hard mute, immediately mute all participants
+                    if (newStatus && room) {
+                      // Mute all remote participants
+                      for (const participant of room.remoteParticipants.values()) {
+                        const micTrack = participant.getTrackPublication(Track.Source.Microphone)
+                        if (micTrack && micTrack.isSubscribed) {
+                          // Send individual mute command
+                          const muteData = encoder.encode(JSON.stringify({ 
+                            type: 'admin-mute-mic', 
+                            targetId: participant.identity 
+                          }))
+                          await localParticipant.publishData(muteData, { reliable: true })
+                        }
+                      }
+                    }
                   }}
                   className={`w-12 h-6 rounded-full relative transition-colors ${globalHardMute ? 'bg-red-600' : 'bg-gray-600'}`}
                   title={globalHardMute ? "إلغاء الكتم الإجباري" : "تفعيل الكتم الإجباري"}
