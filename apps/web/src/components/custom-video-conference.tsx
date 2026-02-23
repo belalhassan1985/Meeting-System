@@ -1178,7 +1178,7 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
         {mainTracks.length > 0 ? (
           <div className="flex-1 flex gap-3 p-3">
             {/* Main video area - 1 or 2 large videos */}
-            <div className={`flex-1 flex gap-3 ${mainTracks.length === 2 ? 'flex-col' : ''
+            <div className={`flex-1 flex gap-3 ${mainTracks.length === 2 ? 'flex-row' : ''
               }`}>
               {mainTracks.map(track => track && (
                 <div key={track.participant.identity} className="flex-1">
