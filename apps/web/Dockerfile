@@ -11,7 +11,7 @@ COPY packages/shared ./packages/shared
 COPY apps/web ./apps/web
 
 # Install dependencies
-RUN npm ci --workspace=@arabic-meet/shared --workspace=@arabic-meet/web
+RUN npm install --workspace=@arabic-meet/shared --workspace=@arabic-meet/web
 
 # Build shared package first
 RUN npm run build --workspace=@arabic-meet/shared
@@ -37,7 +37,7 @@ COPY --from=builder /app/apps/web/.next ./apps/web/.next
 COPY --from=builder /app/apps/web/next.config.js ./apps/web/
 
 # Install production dependencies only
-RUN npm ci --workspace=@arabic-meet/shared --workspace=@arabic-meet/web --omit=dev
+RUN npm install --workspace=@arabic-meet/shared --workspace=@arabic-meet/web --omit=dev
 
 # Expose port
 EXPOSE 3000

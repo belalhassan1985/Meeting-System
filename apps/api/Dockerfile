@@ -11,7 +11,7 @@ COPY packages/shared ./packages/shared
 COPY apps/api ./apps/api
 
 # Install dependencies
-RUN npm ci --workspace=@arabic-meet/shared --workspace=@arabic-meet/api
+RUN npm install --workspace=@arabic-meet/shared --workspace=@arabic-meet/api
 
 # Build shared package first
 RUN npm run build --workspace=@arabic-meet/shared
@@ -36,7 +36,7 @@ COPY --from=builder /app/apps/api/package.json ./apps/api/
 COPY --from=builder /app/apps/api/dist ./apps/api/dist
 
 # Install production dependencies only
-RUN npm ci --workspace=@arabic-meet/shared --workspace=@arabic-meet/api --omit=dev
+RUN npm install --workspace=@arabic-meet/shared --workspace=@arabic-meet/api --omit=dev
 
 # Expose port
 EXPOSE 3001
