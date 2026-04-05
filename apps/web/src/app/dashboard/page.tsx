@@ -1,0 +1,102 @@
+'use client'
+
+import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Video, Users, LogOut } from 'lucide-react'
+import { RoomList } from '@/components/room-list'
+
+export default function DashboardPage() {
+  const [userInfo, setUserInfo] = useState<any>(null)
+  const router = useRouter()
+
+  useEffect(() => {
+    const token = localStorage.getItem('token')
+    const user = localStorage.getItem('userInfo')
+    
+    if (!token || !user) {
+      router.push('/login')
+      return
+    }
+    
+    const parsedUser = JSON.parse(user)
+    
+    // التحقق من أن المستخدم ليس admin
+    if (parsedUser.role === 'admin') {
+      router.push('/admin')
+      return
+    }
+    
+    setUserInfo(parsedUser)
+  }, [router])
+
+  const handleLogout = () => {
+    localStorage.removeItem('token')
+    localStorage.removeItem('userInfo')
+    router.push('/login')
+  }
+
+  if (!userInfo) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <p className="text-lg">جاري التحميل...</p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
+      <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-8">
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 sm:mb-8">
+          <div className="flex items-center gap-3">
+            <Video className="w-8 h-8 sm:w-10 sm:h-10 text-primary" />
+            <div>
+              <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">
+                نظام الاجتماعات
+              </h1>
+              <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">
+                مرحباً، {userInfo.name}
+              </p>
+            </div>
+          </div>
+          
+          <div className="flex gap-2 w-full sm:w-auto">
+            <Button variant="outline" size="sm" onClick={handleLogout} className="gap-2 flex-1 sm:flex-initial">
+              <LogOut className="w-4 h-4" />
+              <span className="sm:inline">تسجيل الخروج</span>
+            </Button>
+          </div>
+        </div>
+        
+        <div className="text-center mb-8 sm:mb-12 px-4">
+          <p className="text-sm sm:text-lg text-gray-600 dark:text-gray-300">
+            منصة اجتماعات فيديو احترافية للشبكات المحلية
+          </p>
+        </div>
+
+        <div className="max-w-4xl mx-auto space-y-6 sm:space-y-8">
+          <Card className="hover:shadow-lg transition-shadow">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Users className="w-5 h-5" />
+                الغرف المسجلة لك
+              </CardTitle>
+              <CardDescription>
+                سيتم عرض الغرف التي تم إضافتك إليها من قبل المسؤول.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <p className="text-sm text-muted-foreground">
+                لا تحتاج إلى إدخال رمز غرفة. إذا لم تظهر لك غرفة، تواصل مع المسؤول ليضيفك.
+              </p>
+            </CardContent>
+          </Card>
+
+          <RoomList />
+        </div>
+      </div>
+    </div>
+  )
+}

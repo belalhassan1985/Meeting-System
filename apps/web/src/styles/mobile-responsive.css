@@ -1,0 +1,121 @@
+/* Mobile Responsive Styles for All Pages */
+
+/* Base responsive utilities */
+@media (max-width: 768px) {
+  /* Container adjustments */
+  .container {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+
+  /* Card adjustments */
+  .card {
+    margin-bottom: 1rem;
+  }
+
+  /* Table responsive */
+  table {
+    display: block;
+    overflow-x: auto;
+    white-space: nowrap;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Button groups */
+  .button-group {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .button-group button {
+    width: 100%;
+  }
+
+  /* Modal adjustments */
+  .modal-content {
+    width: 95vw !important;
+    max-width: 95vw !important;
+    margin: 1rem;
+  }
+
+  /* Form adjustments */
+  .form-row {
+    flex-direction: column;
+  }
+
+  .form-row > * {
+    width: 100% !important;
+  }
+
+  /* Hide text on mobile, show icons only */
+  .mobile-icon-only .button-text {
+    display: none;
+  }
+
+  /* Stack flex items on mobile */
+  .mobile-stack {
+    flex-direction: column !important;
+  }
+
+  /* Full width on mobile */
+  .mobile-full-width {
+    width: 100% !important;
+  }
+
+  /* Smaller text on mobile */
+  h1 {
+    font-size: 1.5rem !important;
+  }
+
+  h2 {
+    font-size: 1.25rem !important;
+  }
+
+  h3 {
+    font-size: 1.125rem !important;
+  }
+
+  /* Reduce padding on mobile */
+  .mobile-reduce-padding {
+    padding: 0.75rem !important;
+  }
+
+  /* Admin table responsive */
+  .admin-table-container {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .admin-table {
+    min-width: 600px;
+  }
+
+  /* Action buttons in tables */
+  .table-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+
+  .table-actions button {
+    width: 100%;
+    font-size: 0.75rem;
+    padding: 0.25rem 0.5rem;
+  }
+}
+
+/* Tablet adjustments */
+@media (min-width: 768px) and (max-width: 1024px) {
+  .container {
+    padding-left: 1.5rem;
+    padding-right: 1.5rem;
+  }
+
+  h1 {
+    font-size: 2rem;
+  }
+
+  h2 {
+    font-size: 1.5rem;
+  }
+}

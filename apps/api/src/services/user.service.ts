@@ -1,0 +1,303 @@
+import { Injectable, UnauthorizedException, ConflictException, NotFoundException, InternalServerErrorException } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { UserEntity, UserRole } from '../entities/user.entity';
+import { ParticipantEntity } from '../entities/participant.entity';
+import { RoomMemberEntity } from '../entities/room-member.entity';
+import { RecordingEntity } from '../entities/recording.entity';
+import * as bcrypt from 'bcrypt';
+import * as jwt from 'jsonwebtoken';
+
+@Injectable()
+export class UserService {
+  constructor(
+    @InjectRepository(UserEntity)
+    private userRepository: Repository<UserEntity>,
+    @InjectRepository(ParticipantEntity)
+    private participantRepository: Repository<ParticipantEntity>,
+    @InjectRepository(RoomMemberEntity)
+    private roomMemberRepository: Repository<RoomMemberEntity>,
+    @InjectRepository(RecordingEntity)
+    private recordingRepository: Repository<RecordingEntity>,
+  ) {}
+
+  async login(username: string, password: string) {
+    console.log('[UserService] Login attempt:', { username, passwordLength: password?.length });
+    
+    const user = await this.userRepository.findOne({ where: { username } });
+    console.log('[UserService] User found:', user ? { id: user.id, username: user.username, role: user.role, isActive: user.isActive, hasPassword: !!user.password } : 'NOT FOUND');
+
+    if (!user) {
+      console.log('[UserService] Login failed: User not found');
+      throw new UnauthorizedException('اسم المستخدم أو كلمة المرور غير صحيحة');
+    }
+
+    if (!user.isActive) {
+      console.log('[UserService] Login failed: User inactive');
+      throw new UnauthorizedException('اسم المستخدم أو كلمة المرور غير صحيحة');
+    }
+
+    console.log('[UserService] Comparing password...');
+    const isPasswordValid = await bcrypt.compare(password, user.password);
+    console.log('[UserService] Password valid:', isPasswordValid);
+
+    if (!isPasswordValid) {
+      console.log('[UserService] Login failed: Invalid password');
+      throw new UnauthorizedException('اسم المستخدم أو كلمة المرور غير صحيحة');
+    }
+
+    console.log('[UserService] Login successful, generating token...');
+    const token = jwt.sign(
+      { id: user.id, username: user.username, role: user.role },
+      process.env.JWT_SECRET || 'your-secret-key',
+      { expiresIn: '7d' }
+    );
+
+    console.log('[UserService] Login completed successfully for role:', user.role);
+    return {
+      token,
+      user: {
+        id: user.id,
+        username: user.username,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+      },
+    };
+  }
+
+  async verifyToken(token: string) {
+    try {
+      const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key') as any;
+      
+      if (decoded.type !== 'user') {
+        return { valid: false };
+      }
+
+      const user = await this.userRepository.findOne({ where: { id: decoded.id } });
+
+      if (!user || !user.isActive) {
+        return { valid: false };
+      }
+
+      return {
+        valid: true,
+        user: {
+          id: user.id,
+          username: user.username,
+          name: user.name,
+          email: user.email,
+        },
+      };
+    } catch (error) {
+      return { valid: false };
+    }
+  }
+
+  async getAllUsers() {
+    const users = await this.userRepository.find({
+      select: ['id', 'username', 'name', 'email', 'role', 'isActive', 'createdAt'],
+      order: { createdAt: 'DESC' },
+    });
+    return users;
+  }
+
+  async getUserById(id: string) {
+    const user = await this.userRepository.findOne({
+      where: { id },
+      select: ['id', 'username', 'name', 'email', 'isActive', 'createdAt'],
+    });
+
+    if (!user) {
+      throw new NotFoundException('المستخدم غير موجود');
+    }
+
+    return user;
+  }
+
+  async createUser(data: { username: string; password: string; name: string; email?: string }) {
+    const existingUser = await this.userRepository.findOne({
+      where: { username: data.username },
+    });
+
+    if (existingUser) {
+      throw new ConflictException('اسم المستخدم موجود بالفعل');
+    }
+
+    if (data.email) {
+      const existingEmail = await this.userRepository.findOne({
+        where: { email: data.email },
+      });
+
+      if (existingEmail) {
+        throw new ConflictException('البريد الإلكتروني موجود بالفعل');
+      }
+    }
+
+    const hashedPassword = await bcrypt.hash(data.password, 10);
+
+    const user = this.userRepository.create({
+      username: data.username,
+      password: hashedPassword,
+      name: data.name,
+      email: data.email,
+    });
+
+    await this.userRepository.save(user);
+
+    return {
+      id: user.id,
+      username: user.username,
+      name: user.name,
+      email: user.email,
+    };
+  }
+
+  async updateUser(id: string, data: Partial<UserEntity>) {
+    const user = await this.userRepository.findOne({ where: { id } });
+    
+    if (!user) {
+      throw new NotFoundException('المستخدم غير موجود');
+    }
+
+    if (data.username && data.username !== user.username) {
+      const existingUser = await this.userRepository.findOne({
+        where: { username: data.username },
+      });
+
+      if (existingUser) {
+        throw new ConflictException('اسم المستخدم موجود بالفعل');
+      }
+    }
+
+    if (data.password) {
+      data.password = await bcrypt.hash(data.password, 10);
+    }
+
+    await this.userRepository.update(id, data);
+    
+    return this.userRepository.findOne({ 
+      where: { id },
+      select: ['id', 'username', 'name', 'email', 'isActive', 'createdAt'],
+    });
+  }
+
+  async deleteUser(id: string) {
+    const user = await this.userRepository.findOne({ where: { id } });
+    
+    if (!user) {
+      throw new NotFoundException('المستخدم غير موجود');
+    }
+
+    try {
+      await this.participantRepository.delete({ userId: id });
+      await this.roomMemberRepository.delete({ userId: id });
+      await this.recordingRepository.delete({ startedBy: id });
+      await this.userRepository.delete(id);
+      return { message: 'تم حذف المستخدم بنجاح' };
+    } catch (error: any) {
+      if (error?.code === '23503') {
+        throw new ConflictException('لا يمكن حذف المستخدم لوجود بيانات مرتبطة به');
+      }
+
+      throw new InternalServerErrorException('Internal server error');
+    }
+  }
+
+  async toggleUserStatus(id: string) {
+    const user = await this.userRepository.findOne({ where: { id } });
+    
+    if (!user) {
+      throw new NotFoundException('المستخدم غير موجود');
+    }
+
+    user.isActive = !user.isActive;
+    await this.userRepository.save(user);
+
+    return {
+      id: user.id,
+      username: user.username,
+      name: user.name,
+      isActive: user.isActive,
+    };
+  }
+
+  async fixRoles() {
+    try {
+      // Update all users: convert any uppercase roles to lowercase
+      const allUsers = await this.userRepository.find();
+      let updatedCount = 0;
+      
+      for (const user of allUsers) {
+        const currentRole = String(user.role);
+        let newRole: any = null;
+        
+        // Convert 'ADMIN' to 'admin'
+        if (currentRole === 'ADMIN') {
+          newRole = 'admin';
+        }
+        // Convert 'USER' to 'user'
+        else if (currentRole === 'USER') {
+          newRole = 'user';
+        }
+        
+        if (newRole) {
+          await this.userRepository.update(user.id, { role: newRole });
+          updatedCount++;
+        }
+      }
+
+      // Return updated users
+      const users = await this.userRepository.find({
+        select: ['id', 'username', 'name', 'role'],
+        order: { createdAt: 'DESC' },
+      });
+
+      return {
+        message: `تم تحديث ${updatedCount} من الأدوار بنجاح`,
+        updatedCount,
+        users: users.map(u => ({
+          name: u.name,
+          username: u.username,
+          role: u.role,
+        })),
+      };
+    } catch (error) {
+      console.error('Error in fixRoles:', error);
+      throw error;
+    }
+  }
+
+  async fixNullUsernames() {
+    const allUsers = await this.userRepository.find();
+    const updates: Array<{ id: string; name: string; username: string }> = [];
+
+    for (const user of allUsers) {
+      if (!user.username) {
+        // Generate username from name or ID
+        let username = user.name 
+          ? user.name.toLowerCase().replace(/\s+/g, '_').substring(0, 20)
+          : `user_${user.id.substring(0, 8)}`;
+        
+        // Check if username exists
+        const existing = await this.userRepository.findOne({ 
+          where: { username } 
+        });
+        
+        if (existing && existing.id !== user.id) {
+          username = `${username}_${user.id.substring(0, 4)}`;
+        }
+
+        user.username = username;
+        updates.push({ id: user.id, name: user.name, username });
+        await this.userRepository.save(user);
+      }
+    }
+
+    return {
+      message: 'تم تحديث usernames بنجاح',
+      updated: updates.length,
+      users: updates,
+    };
+  }
+}

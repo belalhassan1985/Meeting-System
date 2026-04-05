@@ -1,0 +1,4 @@
+```powershell
+cd C:\livekit
+.\livekit-server.exe --config livekit.yaml
+```
