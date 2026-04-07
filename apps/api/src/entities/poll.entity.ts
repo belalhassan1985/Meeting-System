@@ -1,6 +1,4 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, ManyToOne, JoinColumn, OneToMany } from 'typeorm';
-import { RoomEntity } from './room.entity';
-import { UserEntity } from './user.entity';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, OneToMany } from 'typeorm';
 import { PollOptionEntity } from './poll-option.entity';
 
 @Entity('polls')
@@ -11,16 +9,8 @@ export class PollEntity {
   @Column()
   roomId: string;
 
-  @ManyToOne(() => RoomEntity, { onDelete: 'CASCADE' })
-  @JoinColumn({ name: 'roomId' })
-  room: RoomEntity;
-
-  @Column()
+  @Column({ nullable: true })
   createdBy: string;
-
-  @ManyToOne(() => UserEntity, { onDelete: 'SET NULL', nullable: true })
-  @JoinColumn({ name: 'createdBy' })
-  creator: UserEntity;
 
   @Column('text')
   question: string;

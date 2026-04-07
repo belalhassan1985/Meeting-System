@@ -1,7 +1,6 @@
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, ManyToOne, JoinColumn } from 'typeorm';
 import { PollEntity } from './poll.entity';
 import { PollOptionEntity } from './poll-option.entity';
-import { UserEntity } from './user.entity';
 
 @Entity('poll_answers')
 export class PollAnswerEntity {
@@ -24,10 +23,6 @@ export class PollAnswerEntity {
 
   @Column()
   userId: string;
-
-  @ManyToOne(() => UserEntity, { onDelete: 'CASCADE' })
-  @JoinColumn({ name: 'userId' })
-  user: UserEntity;
 
   @CreateDateColumn()
   createdAt: Date;
