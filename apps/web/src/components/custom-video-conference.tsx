@@ -11,7 +11,7 @@ import {
   TrackRefContext,
 } from '@livekit/components-react'
 import { Track, RemoteParticipant, LocalParticipant, ConnectionState } from 'livekit-client'
-import { Mic, MicOff, Video, VideoOff, Hand, Pin, PinOff, Users, UserX, LogOut, Grid3x3, LayoutGrid, MessageCircle, Circle, Square, Wifi, WifiOff, Signal, SignalHigh, SignalMedium, SignalLow, Settings } from 'lucide-react'
+import { Mic, MicOff, Video, VideoOff, Hand, Pin, PinOff, Users, UserX, LogOut, Grid3x3, LayoutGrid, MessageCircle, Circle, Square, Wifi, WifiOff, Signal, SignalHigh, SignalMedium, SignalLow, Settings, HelpCircle } from 'lucide-react'
 import { UserRole } from '@arabic-meet/shared'
 import { useRouter } from 'next/navigation'
 import { ChatPanel } from './chat-panel'
@@ -20,6 +20,8 @@ import { getSocket } from '@/lib/socket'
 import type { ChatMessage } from '@arabic-meet/shared'
 import { LocalRecordingService } from '@/lib/local-recording'
 import { Watermark } from './ui/watermark'
+import { PollSidebar } from './poll-sidebar'
+import { PollUserDialog } from './poll-user-dialog'
 
 interface CustomVideoConferenceProps {
   userRole: UserRole
@@ -35,6 +37,7 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
   const [layoutMode, setLayoutMode] = useState<'grid' | 'spotlight' | 'dual'>('grid')
   const [showParticipants, setShowParticipants] = useState(false)
   const [showChat, setShowChat] = useState(false)
+  const [showPolls, setShowPolls] = useState(false)
   const [unreadMessages, setUnreadMessages] = useState(0)
   const [participantStates, setParticipantStates] = useState<Record<string, { micEnabled: boolean; cameraEnabled: boolean }>>({})
   const [networkQuality, setNetworkQuality] = useState<Record<string, { quality: 'excellent' | 'good' | 'poor' | 'unknown'; stats?: any }>>({})
@@ -55,7 +58,7 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
   const [recordingDuration, setRecordingDuration] = useState(0)
   const [localRecorder] = useState(() => new LocalRecordingService())
   const router = useRouter()
-  const { addChatMessage, roomId, userId, userName } = useRoomStore()
+  const { addChatMessage, roomId, userId, userName, setActivePoll, setPollResults } = useRoomStore()
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
   const API_BASE = `${API_URL}/api`
 
@@ -110,7 +113,7 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
 
       // Auto-close sidebars on mobile when switching
       if (mobile) {
-        if (showChat || showSettings || showNetworkStats || showParticipants) {
+        if (showChat || showSettings || showNetworkStats || showParticipants || showPolls) {
           // Keep only one sidebar open at a time on mobile
         }
       }
@@ -133,12 +136,24 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
       }
     }
 
+    const handleNewPoll = (poll: any) => {
+      setActivePoll(poll)
+    }
+
+    const handlePollResultsUpdate = (data: any) => {
+      setPollResults(data)
+    }
+
     socket.on('room:chat', handleChatMessage)
+    socket.on('new_poll', handleNewPoll)
+    socket.on('poll_results_update', handlePollResultsUpdate)
 
     return () => {
       socket.off('room:chat', handleChatMessage)
+      socket.off('new_poll', handleNewPoll)
+      socket.off('poll_results_update', handlePollResultsUpdate)
     }
-  }, [addChatMessage, showChat])
+  }, [addChatMessage, showChat, setActivePoll, setPollResults])
 
   // Reset unread count when chat is opened
   useEffect(() => {
@@ -1200,6 +1215,15 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
           </div>
         )}
 
+        {/* Polls Sidebar */}
+        {isAdmin && showPolls && (
+          <div className={`absolute top-0 right-0 h-full bg-gray-900/95 backdrop-blur border-l border-gray-700 z-30 overflow-hidden shadow-2xl ${isMobile ? 'w-full' : 'w-96'
+            }`}>
+            <PollSidebar />
+            <button onClick={() => setShowPolls(false)} className="absolute top-4 left-4 text-gray-400 hover:text-white text-xl z-10 bg-gray-800 rounded-full w-8 h-8 flex items-center justify-center">✕</button>
+          </div>
+        )}
+
         {mainTracks.length > 0 ? (
           <div className="flex-1 flex gap-3 p-3">
             {/* Main video area - 1 or 2 large videos */}
@@ -1391,9 +1415,26 @@ export function CustomVideoConference({ userRole }: CustomVideoConferenceProps) 
                 )}
               </button>
             )}
+
+            {isAdmin && (
+              <button
+                onClick={() => {
+                  setShowPolls(!showPolls)
+                  setShowParticipants(false)
+                  setShowChat(false)
+                }}
+                className={`flex items-center gap-2 rounded-lg transition text-sm font-medium ${showPolls ? 'bg-indigo-600 hover:bg-indigo-700 text-white' : 'bg-gray-700 hover:bg-gray-600 text-white'
+                  } ${isMobile ? 'p-3' : 'px-4 py-2.5'}`}
+                title="الأسئلة والتصويت"
+              >
+                <HelpCircle className="w-5 h-5" />
+                {!isMobile && <span>تصويت</span>}
+              </button>
+            )}
           </div>
         </div>
       </div>
+      <PollUserDialog />
     </div>
   )
 }

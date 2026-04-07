@@ -84,3 +84,27 @@ export interface AuditLog {
   details?: string;
   timestamp: Date;
 }
+
+export interface PollOption {
+  id: string;
+  pollId: string;
+  text: string;
+}
+
+export interface Poll {
+  id: string;
+  roomId: string;
+  createdBy: string;
+  question: string;
+  options: PollOption[];
+  isActive: boolean;
+  createdAt: Date;
+}
+
+export interface PollAnswer {
+  id: string;
+  pollId: string;
+  userId: string;
+  optionId: string;
+  createdAt: Date;
+}

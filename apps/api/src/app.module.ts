@@ -23,6 +23,11 @@ import { AuditLogEntity } from './entities/audit-log.entity';
 import { AdminEntity } from './entities/admin.entity';
 import { RoomMemberEntity } from './entities/room-member.entity';
 import { RecordingEntity } from './entities/recording.entity';
+import { PollEntity } from './entities/poll.entity';
+import { PollOptionEntity } from './entities/poll-option.entity';
+import { PollAnswerEntity } from './entities/poll-answer.entity';
+import { PollController } from './controllers/poll.controller';
+import { PollService } from './services/poll.service';
 
 @Module({
   imports: [
@@ -38,9 +43,12 @@ import { RecordingEntity } from './entities/recording.entity';
       AdminEntity,
       RoomMemberEntity,
       RecordingEntity,
+      PollEntity,
+      PollOptionEntity,
+      PollAnswerEntity,
     ]),
   ],
-  controllers: [RoomController, AdminController, AuthController, UserController, RoomMemberController, RecordingController],
-  providers: [RoomService, AdminService, AuthService, UserService, RoomMemberService, RecordingService, LiveKitService, RoomGateway],
+  controllers: [RoomController, AdminController, AuthController, UserController, RoomMemberController, RecordingController, PollController],
+  providers: [RoomService, AdminService, AuthService, UserService, RoomMemberService, RecordingService, LiveKitService, RoomGateway, PollService],
 })
 export class AppModule {}

@@ -1,5 +1,10 @@
 import { create } from 'zustand'
-import type { Participant, ChatMessage, UserRole } from '@arabic-meet/shared'
+import type { Participant, ChatMessage, UserRole, Poll } from '@arabic-meet/shared'
+
+interface PollResult {
+  pollId: string;
+  results: Record<string, number>;
+}
 
 interface RoomState {
   roomId: string | null
@@ -9,9 +14,11 @@ interface RoomState {
   participants: Participant[]
   chatMessages: ChatMessage[]
   isSidebarOpen: boolean
-  sidebarTab: 'chat' | 'participants' | 'settings'
+  sidebarTab: 'chat' | 'participants' | 'settings' | 'polls'
   isHandRaised: boolean
   connectionQuality: 'excellent' | 'good' | 'poor' | null
+  activePoll: Poll | null
+  pollResults: PollResult | null
   
   setRoomInfo: (roomId: string, userId: string, userName: string, userRole: UserRole) => void
   setParticipants: (participants: Participant[]) => void
@@ -20,9 +27,11 @@ interface RoomState {
   updateParticipant: (userId: string, updates: Partial<Participant>) => void
   addChatMessage: (message: ChatMessage) => void
   toggleSidebar: () => void
-  setSidebarTab: (tab: 'chat' | 'participants' | 'settings') => void
+  setSidebarTab: (tab: 'chat' | 'participants' | 'settings' | 'polls') => void
   setHandRaised: (raised: boolean) => void
   setConnectionQuality: (quality: 'excellent' | 'good' | 'poor' | null) => void
+  setActivePoll: (poll: Poll | null) => void
+  setPollResults: (results: PollResult | null) => void
   reset: () => void
 }
 
@@ -37,6 +46,8 @@ export const useRoomStore = create<RoomState>((set) => ({
   sidebarTab: 'chat',
   isHandRaised: false,
   connectionQuality: null,
+  activePoll: null,
+  pollResults: null,
 
   setRoomInfo: (roomId, userId, userName, userRole) =>
     set({ roomId, userId, userName, userRole }),
@@ -74,6 +85,10 @@ export const useRoomStore = create<RoomState>((set) => ({
 
   setConnectionQuality: (quality) => set({ connectionQuality: quality }),
 
+  setActivePoll: (poll) => set({ activePoll: poll }),
+  
+  setPollResults: (results) => set({ pollResults: results }),
+
   reset: () =>
     set({
       roomId: null,
@@ -86,5 +101,7 @@ export const useRoomStore = create<RoomState>((set) => ({
       sidebarTab: 'chat',
       isHandRaised: false,
       connectionQuality: null,
+      activePoll: null,
+      pollResults: null,
     }),
 }))
