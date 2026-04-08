@@ -54,6 +54,7 @@ services:
     ports:
       - "7880:7880"
       - "7881:7881"
+      - "50000-60000:50000-60000/udp"
     depends_on:
       - redis
     restart: unless-stopped
