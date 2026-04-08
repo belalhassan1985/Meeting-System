@@ -4,6 +4,7 @@ import { Repository } from 'typeorm';
 import { PollEntity } from '../entities/poll.entity';
 import { PollOptionEntity } from '../entities/poll-option.entity';
 import { PollAnswerEntity } from '../entities/poll-answer.entity';
+import { ParticipantEntity } from '../entities/participant.entity';
 import { RoomGateway } from '../gateways/room.gateway';
 
 @Injectable()
@@ -13,6 +14,8 @@ export class PollService {
     private pollRepository: Repository<PollEntity>,
     @InjectRepository(PollAnswerEntity)
     private answerRepository: Repository<PollAnswerEntity>,
+    @InjectRepository(ParticipantEntity)
+    private participantRepository: Repository<ParticipantEntity>,
     private roomGateway: RoomGateway,
   ) {}
 
@@ -78,5 +81,36 @@ export class PollService {
       relations: ['options'],
       order: { createdAt: 'DESC' },
     });
+  }
+
+  async getDetailedPollResults(pollId: string) {
+    const answers = await this.answerRepository.find({ where: { pollId } });
+    
+    // get participant names for each answer
+    const detailed = await Promise.all(
+      answers.map(async (ans) => {
+        const participant = await this.participantRepository.findOne({
+          where: { userId: ans.userId },
+          order: { joinedAt: 'DESC' }
+        });
+        return {
+          userId: ans.userId,
+          userName: participant ? participant.displayName : 'Unknown User',
+          optionId: ans.optionId,
+          createdAt: ans.createdAt
+        };
+      })
+    );
+    return detailed;
+  }
+
+  async deletePoll(pollId: string) {
+    const poll = await this.pollRepository.findOne({ where: { id: pollId } });
+    if (!poll) {
+      throw new NotFoundException('Poll not found');
+    }
+    await this.pollRepository.remove(poll);
+    // Alternatively: await this.pollRepository.delete(pollId);
+    return { success: true };
   }
 }

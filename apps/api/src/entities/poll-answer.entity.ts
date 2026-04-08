@@ -7,21 +7,21 @@ export class PollAnswerEntity {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column()
+  @Column({ type: 'uuid' })
   pollId: string;
 
   @ManyToOne(() => PollEntity, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'pollId' })
   poll: PollEntity;
 
-  @Column()
+  @Column({ type: 'uuid' })
   optionId: string;
 
   @ManyToOne(() => PollOptionEntity, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'optionId' })
   option: PollOptionEntity;
 
-  @Column()
+  @Column({ type: 'uuid' })
   userId: string;
 
   @CreateDateColumn()

@@ -6,7 +6,7 @@ export class PollOptionEntity {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column()
+  @Column({ type: 'uuid' })
   pollId: string;
 
   @ManyToOne(() => PollEntity, poll => poll.options, { onDelete: 'CASCADE' })

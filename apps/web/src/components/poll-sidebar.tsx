@@ -75,6 +75,46 @@ export function PollSidebar() {
     document.body.removeChild(link);
   };
 
+  const exportDetailedReport = async (poll: any) => {
+    try {
+      const { data } = await axios.get(`${process.env.NEXT_PUBLIC_API_URL}/api/rooms/polls/${poll.id}/detailed-report`);
+      
+      let csvContent = "data:text/csv;charset=utf-8,\uFEFF" 
+        + "الاسم,الخيار,وقت التصويت\n";
+        
+      data.forEach((answer: any) => {
+        const option = poll.options.find((opt: any) => opt.id === answer.optionId);
+        const optionText = option ? option.text : 'غير معروف';
+        const date = new Date(answer.createdAt).toLocaleString('ar-EG');
+        csvContent += `${answer.userName},${optionText},${date}\n`;
+      });
+
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement("a");
+      link.setAttribute("href", encodedUri);
+      link.setAttribute("download", `poll_detailed_report_${poll.id}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (err) {
+      console.error(err);
+      alert('حدث خطأ أثناء استخراج التقرير المفصل');
+    }
+  };
+
+  const deletePoll = async (pollId: string) => {
+    if (!window.confirm("هل أنت متأكد من أنك تريد حذف هذا التصويت بشكل نهائي؟ لا يمكن التراجع عن هذا الإجراء.")) {
+      return;
+    }
+    try {
+      await axios.delete(`${process.env.NEXT_PUBLIC_API_URL}/api/rooms/polls/${pollId}`);
+      fetchHistory();
+    } catch (err) {
+      console.error(err);
+      alert('حدث خطأ أثناء حذف التصويت');
+    }
+  };
+
   return (
     <div className="h-full flex flex-col p-4">
       <div className="flex items-center justify-between mb-4">
@@ -182,8 +222,17 @@ export function PollSidebar() {
               <p className="text-gray-500 text-center text-sm py-4">لا يوجد أسئلة سابقة</p>
             ) : (
               history.filter(h => h.id !== activePoll?.id).map((poll) => (
-                <div key={poll.id} className="bg-gray-800 border border-gray-700 p-4 rounded-lg">
-                  <h4 className="text-gray-200 font-medium text-sm mb-3">{poll.question}</h4>
+                <div key={poll.id} className="bg-gray-800 border border-gray-700 p-4 rounded-lg relative group">
+                  <div className="flex justify-between items-start gap-2 mb-3">
+                    <h4 className="text-gray-200 font-medium text-sm flex-1">{poll.question}</h4>
+                    <button 
+                      onClick={() => deletePoll(poll.id)} 
+                      className="text-gray-500 hover:text-red-500 p-1 transition-colors rounded-md hover:bg-red-500/10"
+                      title="حذف التصويت"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
                   <div className="space-y-1.5 mb-3">
                     {poll.options.map((opt: any) => {
                       const count = poll.results?.[opt.id] || 0;
@@ -195,10 +244,16 @@ export function PollSidebar() {
                       );
                     })}
                   </div>
-                  <Button variant="ghost" size="sm" onClick={() => exportReport(poll)} className="w-full text-blue-400 hover:text-blue-300 hover:bg-blue-900/20 text-xs gap-1 h-8">
-                    <Download className="w-3 h-3" />
-                    استخراج تقرير (CSV)
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button variant="ghost" size="sm" onClick={() => exportReport(poll)} className="flex-1 text-blue-400 hover:text-blue-300 hover:bg-blue-900/20 text-xs gap-1 h-8">
+                      <Download className="w-3 h-3" />
+                      تقرير ملخص (CSV)
+                    </Button>
+                    <Button variant="ghost" size="sm" onClick={() => exportDetailedReport(poll)} className="flex-1 text-purple-400 hover:text-purple-300 hover:bg-purple-900/20 text-xs gap-1 h-8 border border-purple-900/30">
+                      <Download className="w-3 h-3" />
+                      تقرير مفصل بالأسماء
+                    </Button>
+                  </div>
                 </div>
               ))
             )}

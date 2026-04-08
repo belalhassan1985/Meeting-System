@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Param, Body, UseGuards, Request } from '@nestjs/common';
+import { Controller, Post, Get, Delete, Param, Body, UseGuards, Request } from '@nestjs/common';
 import { PollService } from '../services/poll.service';
 
 @Controller('rooms')
@@ -36,7 +36,16 @@ export class PollController {
         return { ...poll, results };
       })
     );
-    
     return pollsWithResults;
+  }
+
+  @Get('polls/:pollId/detailed-report')
+  async getDetailedReport(@Param('pollId') pollId: string) {
+    return this.pollService.getDetailedPollResults(pollId);
+  }
+
+  @Delete('polls/:pollId')
+  async deletePoll(@Param('pollId') pollId: string) {
+    return this.pollService.deletePoll(pollId);
   }
 }
