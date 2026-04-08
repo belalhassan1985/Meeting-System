@@ -38,6 +38,8 @@ services:
         rtc:
           use_external_ip: true
           tcp_port: 7881
+          port_range_start: 50000
+          port_range_end: 50050
         redis:
           address: redis:6379
         keys:
@@ -54,7 +56,7 @@ services:
     ports:
       - "7880:7880"
       - "7881:7881"
-      - "50000-60000:50000-60000/udp"
+      - "50000-50050:50000-50050/udp"
     depends_on:
       - redis
     restart: unless-stopped
