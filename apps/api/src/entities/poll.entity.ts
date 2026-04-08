@@ -6,7 +6,7 @@ export class PollEntity {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column({ type: 'uuid' })
+  @Column({ type: 'uuid', nullable: true })
   roomId: string;
 
   @Column({ type: 'uuid', nullable: true })
